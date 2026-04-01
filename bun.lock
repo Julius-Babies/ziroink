@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "ziroink",
+      "dependencies": {
+        "@zerodevx/svelte-json-view": "^1.0.11",
+      },
       "devDependencies": {
         "@sveltejs/adapter-node": "^5.5.2",
         "@sveltejs/kit": "^2.50.2",
@@ -191,6 +194,8 @@
     "@types/trusted-types": ["@types/trusted-types@2.0.7", "", {}, "sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw=="],
 
     "@typescript-eslint/types": ["@typescript-eslint/types@8.58.0", "", {}, "sha512-O9CjxypDT89fbHxRfETNoAnHj/i6IpRK0CvbVN3qibxlLdo5p5hcLmUuCCrHMpxiWSwKyI8mCP7qRNYuOJ0Uww=="],
+
+    "@zerodevx/svelte-json-view": ["@zerodevx/svelte-json-view@1.0.11", "", { "peerDependencies": { "svelte": "^3.57.0 || ^4.0.0 || ^5.0.0" } }, "sha512-mIjj0H1al/P4FPlbeDoiey93lNEUqBEAe5LIdD5GttZfEYt3awexD2lHwKNfUeY4jHizOJkoWTPN/2iO0GBqpw=="],
 
     "acorn": ["acorn@8.16.0", "", { "bin": { "acorn": "bin/acorn" } }, "sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw=="],
 
