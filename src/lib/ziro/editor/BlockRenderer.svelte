@@ -41,7 +41,7 @@
 </script>
 
 {#if block instanceof TextBlock}
-    <div class="relative w-full {getVariantClass(block)}" style="margin-left: {block.indentLevel * 32}px;" data-ziro-block-id={block.id}>
+    <div class="relative w-full min-h-[1.5em] {getVariantClass(block)}" style="margin-left: {block.indentLevel * 32}px;" data-ziro-block-id={block.id}>
         {#if showPlaceholder}
             <div class="absolute left-0 top-0 text-gray-400 pointer-events-none select-none">{getPlaceholderText(block)}</div>
         {/if}

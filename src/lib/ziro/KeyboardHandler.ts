@@ -347,7 +347,7 @@ export class KeyboardHandler {
 
             const cursorOffset = this.page.selection!.start.offset;
 
-            if (event.key === " " && block.variant === "paragraph") {
+            if (event.key === " ") {
                 const textBefore = block.getVisualText().slice(0, cursorOffset);
                 if (textBefore.match(/^#{1,6}$/)) {
                     this.page.updateBlockVariant(block.id, `h${textBefore.length}` as any);
