@@ -59,8 +59,8 @@ export class TextBlock implements Block{
     getVisualText(): string {
         return this.inlines.reduce((acc, inline) => {
             if (inline instanceof InlineText) {
-                return inline.content
-            } else return "|"
+                return acc + inline.content
+            } else return acc + "|"
         }, "")
     }
 
