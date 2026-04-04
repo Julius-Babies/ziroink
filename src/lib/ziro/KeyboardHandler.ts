@@ -1,7 +1,7 @@
 import type {Page} from "$lib/ziro/Page.svelte";
 import {InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
 
-const WORD_SEPARATORS = [" ", "|", "\n"];
+const WORD_SEPARATORS = [" ", "|"];
 
 export class KeyboardHandler {
     page: Page;
@@ -11,6 +11,25 @@ export class KeyboardHandler {
     }
 
     onEvent(event: KeyboardEvent) {
+        if (event.key === "Enter" && event.shiftKey) {
+            event.preventDefault();
+
+            const blockIdAtCursor = this.page.selection?.start.blockId;
+            if (!blockIdAtCursor) return;
+            const block = this.page.findBlock(b => b.id === blockIdAtCursor);
+            if (!block || !(block instanceof TextBlock)) return;
+
+            if (this.page.selection?.end) {
+                this.page.deleteContent(this.page.selection.start, this.page.selection.end);
+                this.page.setSelection(this.page.selection.start, null);
+            }
+
+            const cursorOffset = this.page.selection!.start.offset;
+            this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, "\n");
+            this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset + 1 }, null);
+            return;
+        }
+
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             const blockIdAtCursor = this.page.selection?.start.blockId

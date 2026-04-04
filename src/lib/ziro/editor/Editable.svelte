@@ -18,6 +18,7 @@
 
 <div
         class="inline"
+        style="white-space: pre-wrap;"
         data-ziro-editor-editable
         data-ziro-editor-editable-type={type}
         data-ziro-editor-editable-for-block-id={blockId}
