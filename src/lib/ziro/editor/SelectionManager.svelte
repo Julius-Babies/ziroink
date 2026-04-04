@@ -35,6 +35,10 @@
         }
     }
 
+    function onMouseDown() {
+        page.cursorXPosition = null;
+    }
+
     $effect(() => {
         if (!page.selection || page.selection.end) return;
 
@@ -60,4 +64,5 @@
 
 <svelte:document
         onselectionchange={onSelectionChange}
+        onmousedown={onMouseDown}
 />

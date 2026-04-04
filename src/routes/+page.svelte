@@ -31,8 +31,12 @@
         <BottomWhitespace page={page}/>
     </div>
     <div class="h-full flex-1 overflow-y-auto">
-        <JsonView json={{selection: page.selection, blocks: page.blocks.map(b => b.toObject())}}/>
+        <JsonView json={{
+            cursorX: page.cursorXPosition,
+            selection: page.selection,
+            blocks: page.blocks.map(b => b.toObject())
+        }}/>
     </div>
 </div>
 
-<SelectionManager page={page} />
+<SelectionManager page={page}/>

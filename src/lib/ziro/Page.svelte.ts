@@ -8,6 +8,7 @@ export class Page {
         start: SelectionPosition;
         end: SelectionPosition | null;
     } = $state(null);
+    cursorXPosition: number | null = $state(null);
 
     insertBlock(block: Block, position: { type: "after_block", afterId: string } | { type: "end" }) {
         if (position.type === "after_block") {
