@@ -1,9 +1,5 @@
-export abstract class Block {
+export interface Block {
     id: string;
-
-    protected constructor(id: string) {
-        this.id = id;
-    }
-
-    abstract toObject(): any
+    indentLevel: number;
+    toObject(): any;
 }

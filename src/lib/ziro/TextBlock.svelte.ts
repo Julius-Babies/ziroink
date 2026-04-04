@@ -1,8 +1,12 @@
 import type {Block} from "$lib/ziro/Block";
 
+export type TextBlockVariant = "paragraph" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+
 export class TextBlock implements Block{
     id: string;
     inlines: Inline[] = $state([])
+    variant: TextBlockVariant = $state("paragraph")
+    indentLevel: number = $state(0);
 
     constructor(id: string) {
         this.id = id;
@@ -13,6 +17,8 @@ export class TextBlock implements Block{
             id: this.id,
             inlines: this.inlines.map(inline => inline.toObject()),
             type: "text",
+            variant: this.variant,
+            indentLevel: this.indentLevel,
         }
     }
 

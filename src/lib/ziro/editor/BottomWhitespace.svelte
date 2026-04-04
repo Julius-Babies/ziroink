@@ -11,7 +11,7 @@
     function createBlockAtEndAndFocus() {
         const block = new TextBlock(crypto.randomUUID());
         const inline = new InlineText(crypto.randomUUID())
-        inline.content = "Platzhalter Hallo Welt"
+        inline.content = "";
         block.inlines = [inline];
         page.insertBlock(block, { type: "end" });
 
@@ -31,6 +31,4 @@
     }
 </script>
 
-<button class="h-40 bg-amber-100 flex w-full flex-1 min-h-24" onclick={onClick}>
-    Hier klicken, für Textblock
-</button>
+<button class="h-40 flex w-full flex-1 min-h-24" onclick={onClick} title="Neuer Textblock"></button>

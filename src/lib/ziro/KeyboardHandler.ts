@@ -56,6 +56,27 @@ export class KeyboardHandler {
             }
         }
 
+        if (event.key === "Tab") {
+            event.preventDefault();
+            this.deleteSelection();
+            const cursorPos = this.getCursorPosition();
+            if (!cursorPos) return;
+            const block = this.page.findBlock(b => b.id === cursorPos.blockId);
+            if (block instanceof TextBlock) {
+                if (event.shiftKey) {
+                    this.page.updateBlockIndent(block.id, -1);
+                } else if (cursorPos.offset === 0) {
+                    this.page.updateBlockIndent(block.id, 1);
+                } else {
+                    const newPos = this.getCursorPosition() || cursorPos;
+                    this.page.insertText({ blockId: block.id, offset: newPos.offset }, "\t");
+                    this.page.setSelection({ blockId: block.id, offset: newPos.offset + 1 }, null);
+                    this.page.cursorXPosition = null;
+                }
+            }
+            return;
+        }
+
         if (event.key === "Enter" && event.shiftKey) {
             event.preventDefault();
 
@@ -128,6 +149,16 @@ export class KeyboardHandler {
 
             if (block instanceof TextBlock) {
                 if (cursorOffset === 0) {
+                    if (block.variant !== "paragraph") {
+                        this.page.updateBlockVariant(block.id, "paragraph");
+                        return;
+                    }
+
+                    if (block.indentLevel > 0) {
+                        this.page.updateBlockIndent(block.id, -1);
+                        return;
+                    }
+
                     const index = this.page.blocks.indexOf(block);
                     if (index <= 0) return;
 
@@ -307,6 +338,18 @@ export class KeyboardHandler {
             if (!block || !(block instanceof TextBlock)) return;
 
             const cursorOffset = this.page.selection!.start.offset;
+
+            if (event.key === " " && block.variant === "paragraph") {
+                const textBefore = block.getVisualText().slice(0, cursorOffset);
+                if (textBefore.match(/^#{1,6}$/)) {
+                    this.page.updateBlockVariant(block.id, `h${textBefore.length}` as any);
+                    this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
+                    this.page.setSelection({blockId: block.id, offset: 0}, null);
+                    this.page.cursorXPosition = null;
+                    return;
+                }
+            }
+
             this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, event.key);
             this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset + event.key.length }, null);
             this.page.cursorXPosition = null;

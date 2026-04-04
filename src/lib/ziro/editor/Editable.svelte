@@ -26,7 +26,7 @@
 
 <span
         class="inline focus:outline-0"
-        style="white-space: pre-wrap; font-weight: {bold ? 'bold' : 'normal'}; font-style: {italic ? 'italic' : 'normal'}; text-decoration: {underline && strikethrough ? 'underline line-through' : underline ? 'underline' : strikethrough ? 'line-through' : 'none'};"
+        style="white-space: pre-wrap; font-weight: {bold ? 'bold' : 'inherit'}; font-style: {italic ? 'italic' : 'inherit'}; text-decoration: {underline && strikethrough ? 'underline line-through' : underline ? 'underline' : strikethrough ? 'line-through' : 'inherit'};"
         data-ziro-editor-editable
         data-ziro-editor-editable-type={type}
         data-ziro-editor-editable-for-block-id={blockId}

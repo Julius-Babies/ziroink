@@ -11,9 +11,23 @@
         block: Block,
         page: Page
     } = $props();
+
+    function getVariantClass(block: TextBlock) {
+        switch (block.variant) {
+            case "h1": return "text-4xl font-bold mt-6 mb-2";
+            case "h2": return "text-3xl font-bold mt-5 mb-2";
+            case "h3": return "text-2xl font-bold mt-4 mb-1";
+            case "h4": return "text-xl font-bold mt-3 mb-1";
+            case "h5": return "text-lg font-bold mt-2 mb-1";
+            case "h6": return "text-base font-bold mt-2 mb-1";
+            default: return "mt-2";
+        }
+    }
 </script>
 
-<div class="w-full mt-2" data-ziro-block-id={block.id}>{#if block instanceof TextBlock}{#each block.inlines as inline, index (inline.id)}{#if index === 0 && !(inline instanceof InlineText)}<Editable
+{#if block instanceof TextBlock}
+    <div class="w-full {getVariantClass(block)}" style="margin-left: {block.indentLevel * 32}px;" data-ziro-block-id={block.id}>
+        {#each block.inlines as inline, index (inline.id)}{#if index === 0 && !(inline instanceof InlineText)}<Editable
                         inlineId={inline.id}
                         type="inline"
                         blockId={block.id}
@@ -35,4 +49,4 @@
                         blockId={block.id}
                         page={page}
                         content=""
-                />{/if}{/each}{/if}</div>
+                />{/if}{/each}</div>{/if}

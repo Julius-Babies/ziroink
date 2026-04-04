@@ -10,6 +10,20 @@ export class Page {
     } = $state(null);
     cursorXPosition: number | null = $state(null);
 
+    updateBlockIndent(blockId: string, delta: number) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block) {
+            block.indentLevel = Math.max(0, Math.min(4, block.indentLevel + delta));
+        }
+    }
+
+    updateBlockVariant(blockId: string, variant: "paragraph" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block && block instanceof TextBlock) {
+            block.variant = variant;
+        }
+    }
+
     insertBlock(block: Block, position: { type: "after_block", afterId: string } | { type: "end" }) {
         if (position.type === "after_block") {
             const index = this.blocks.findIndex(b => b.id === position.afterId);
