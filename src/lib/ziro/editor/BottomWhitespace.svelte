@@ -11,7 +11,7 @@
     function createBlockAtEndAndFocus() {
         const block = new TextBlock(crypto.randomUUID());
         const inline = new InlineText(crypto.randomUUID())
-        inline.content = "Platzhalter"
+        inline.content = "Platzhalter Hallo Welt"
         block.inlines = [inline];
         page.insertBlock(block, { type: "end" });
 

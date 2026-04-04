@@ -86,8 +86,14 @@ export class KeyboardHandler {
 
                 let deleteStartOffset: number;
                 if (event.altKey || event.metaKey) {
-                    const textBeforeCursor = block.getVisualText().slice(0, cursorOffset);
+                    let textBeforeCursor = block.getVisualText().slice(0, cursorOffset);
+
+                    // Remove trailing word separators
                     const wordSeparators = [" ", "|", "\n"];
+                    while (textBeforeCursor.length > 0 && wordSeparators.includes(textBeforeCursor.slice(-1))) {
+                        textBeforeCursor = textBeforeCursor.slice(0, -1);
+
+                    }
                     const lastSeparatorIndex = Math.max(...wordSeparators.map(s => textBeforeCursor.lastIndexOf(s)));
                     deleteStartOffset = lastSeparatorIndex === -1 ? 0 : lastSeparatorIndex + 1;
                 } else {
