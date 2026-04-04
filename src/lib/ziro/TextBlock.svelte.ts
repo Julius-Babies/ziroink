@@ -84,6 +84,10 @@ export abstract class Inline {
 export class InlineText implements Inline {
     id: string;
     content: string = $state("");
+    bold: boolean = $state(false);
+    italic: boolean = $state(false);
+    underline: boolean = $state(false);
+    strikethrough: boolean = $state(false);
 
     constructor(id: string) {
         this.id = id;
@@ -94,6 +98,10 @@ export class InlineText implements Inline {
             id: this.id,
             type: "text",
             content: this.content,
+            bold: this.bold,
+            italic: this.italic,
+            underline: this.underline,
+            strikethrough: this.strikethrough,
         }
     }
 
@@ -102,6 +110,9 @@ export class InlineText implements Inline {
      * @param other
      */
     isSameStyleAs(other: InlineText): boolean {
-        return true;
+        return this.bold === other.bold &&
+               this.italic === other.italic &&
+               this.underline === other.underline &&
+               this.strikethrough === other.strikethrough;
     }
 }

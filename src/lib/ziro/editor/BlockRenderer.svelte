@@ -13,36 +13,26 @@
     } = $props();
 </script>
 
-<div class="w-full mt-2" data-ziro-block-id={block.id}>
-    {#if block instanceof TextBlock}
-        {#each block.inlines as inline, index (inline.id)}
-            {#if index === 0 && !(inline instanceof InlineText)}
-                <Editable
+<div class="w-full mt-2" data-ziro-block-id={block.id}>{#if block instanceof TextBlock}{#each block.inlines as inline, index (inline.id)}{#if index === 0 && !(inline instanceof InlineText)}<Editable
                         inlineId={inline.id}
                         type="inline"
                         blockId={block.id}
                         page={page}
                         content=""
-                />
-            {/if}
-            {#if inline instanceof InlineText}
-                <Editable
+                />{/if}{#if inline instanceof InlineText}<Editable
                         inlineId={inline.id}
                         type="inline"
                         blockId={block.id}
                         page={page}
                         content={inline.content}
-                />
-            {/if}
-            {#if index === block.inlines.length - 1 && !(inline instanceof InlineText)}
-                <Editable
+                        bold={inline.bold}
+                        italic={inline.italic}
+                        underline={inline.underline}
+                        strikethrough={inline.strikethrough}
+                />{/if}{#if index === block.inlines.length - 1 && !(inline instanceof InlineText)}<Editable
                         inlineId={inline.id}
                         type="inline"
                         blockId={block.id}
                         page={page}
                         content=""
-                />
-            {/if}
-        {/each}
-    {/if}
-</div>
+                />{/if}{/each}{/if}</div>

@@ -236,14 +236,16 @@
         return { node: anchorNode, offset: offsetInInline };
     }
 
-    let selectionRects: DOMRect[] = $state([]);
+    let selectionRects: Rect[] = $state([]);
 
-    function getNormalizedSelectionRects(range: Range): DOMRect[] {
-        const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
+    type Rect = { top: number, bottom: number, left: number, right: number, width: number, height: number };
+
+    function getNormalizedSelectionRects(range: Range): Rect[] {
+        const rawRects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
         
         // Filter out container rects that strictly enclose other rects (like full block divs)
-        return rects.filter(r1 => {
-            return !rects.some(r2 => 
+        const filtered = rawRects.filter(r1 => {
+            return !rawRects.some(r2 => 
                 r1 !== r2 && 
                 r2.left >= r1.left && 
                 r2.right <= r1.right && 
@@ -252,6 +254,38 @@
                 (r1.width > r2.width || r1.height > r2.height)
             );
         });
+
+        if (filtered.length === 0) return [];
+
+        const sorted = filtered.map(r => ({
+            top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height
+        })).sort((a, b) => {
+            if (Math.abs(a.top - b.top) > 2) return a.top - b.top;
+            return a.left - b.left;
+        });
+
+        const merged: Rect[] = [];
+        let current = sorted[0];
+
+        for (let i = 1; i < sorted.length; i++) {
+            const next = sorted[i];
+            const isSameLine = Math.abs(current.top - next.top) < 2 && Math.abs(current.bottom - next.bottom) < 2;
+            const isAdjacent = next.left <= current.right + 1; // 1px tolerance for rounding errors
+
+            if (isSameLine && isAdjacent) {
+                current.right = Math.max(current.right, next.right);
+                current.width = current.right - current.left;
+                current.top = Math.min(current.top, next.top);
+                current.bottom = Math.max(current.bottom, next.bottom);
+                current.height = current.bottom - current.top;
+            } else {
+                merged.push({ ...current });
+                current = { ...next };
+            }
+        }
+        merged.push(current);
+
+        return merged;
     }
 
     $effect(() => {

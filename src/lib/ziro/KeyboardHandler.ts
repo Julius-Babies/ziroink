@@ -35,6 +35,27 @@ export class KeyboardHandler {
     }
 
     onEvent(event: KeyboardEvent) {
+        if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+            const key = event.key.toLowerCase();
+            if (key === "b") {
+                event.preventDefault();
+                this.page.toggleStyle("bold");
+                return;
+            } else if (key === "i") {
+                event.preventDefault();
+                this.page.toggleStyle("italic");
+                return;
+            } else if (key === "u") {
+                event.preventDefault();
+                this.page.toggleStyle("underline");
+                return;
+            } else if (key === "j") {
+                event.preventDefault();
+                this.page.toggleStyle("strikethrough");
+                return;
+            }
+        }
+
         if (event.key === "Enter" && event.shiftKey) {
             event.preventDefault();
 

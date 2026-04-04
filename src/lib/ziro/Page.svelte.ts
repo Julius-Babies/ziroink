@@ -49,6 +49,163 @@ export class Page {
             : { start: pos2, end: pos1 };
     }
 
+    toggleStyle(style: "bold" | "italic" | "underline" | "strikethrough") {
+        const sel = this.getNormalizedSelection();
+        if (!sel) return;
+
+        const startIdx = this.blocks.findIndex(b => b.id === sel.start.blockId);
+        const endIdx = this.blocks.findIndex(b => b.id === sel.end.blockId);
+        if (startIdx === -1 || endIdx === -1) return;
+
+        // Step 1: Check if all text within selection has the style
+        let allHaveStyle = true;
+        for (let i = startIdx; i <= endIdx; i++) {
+            const block = this.blocks[i];
+            if (!(block instanceof TextBlock)) continue;
+
+            const isFirst = i === startIdx;
+            const isLast = i === endIdx;
+            const startOffset = isFirst ? sel.start.offset : 0;
+            const endOffset = isLast ? sel.end.offset : block.getContentLength();
+
+            if (startOffset === endOffset) continue;
+
+            const inlineStart = block.findInlineAtOffset(startOffset);
+            const inlineEnd = block.findInlineAtOffset(endOffset);
+
+            const startInlineIdx = block.inlines.findIndex(inl => inlineStart.inline.id === inl.id);
+            const endInlineIdx = block.inlines.findIndex(inl => inlineEnd.inline.id === inl.id);
+
+            for (let j = startInlineIdx; j <= endInlineIdx; j++) {
+                const inline = block.inlines[j];
+                if (inline instanceof InlineText) {
+                    if (!inline[style]) {
+                        allHaveStyle = false;
+                        break;
+                    }
+                }
+            }
+            if (!allHaveStyle) break;
+        }
+
+        const targetValue = !allHaveStyle;
+
+        // Step 2: Apply the style to the selection range
+        for (let i = startIdx; i <= endIdx; i++) {
+            const block = this.blocks[i];
+            if (!(block instanceof TextBlock)) continue;
+
+            const isFirst = i === startIdx;
+            const isLast = i === endIdx;
+            const startOffset = isFirst ? sel.start.offset : 0;
+            const endOffset = isLast ? sel.end.offset : block.getContentLength();
+
+            if (startOffset === endOffset) continue;
+
+            this.applyStyleToBlockRange(block, startOffset, endOffset, style, targetValue);
+        }
+    }
+
+    private applyStyleToBlockRange(block: TextBlock, startOffset: number, endOffset: number, style: "bold" | "italic" | "underline" | "strikethrough", value: boolean) {
+        const inlineStart = block.findInlineAtOffset(startOffset);
+        const inlineEnd = block.findInlineAtOffset(endOffset);
+
+        const startIdx = block.inlines.findIndex(inl => inlineStart.inline.id === inl.id);
+        const endIdx = block.inlines.findIndex(inl => inlineEnd.inline.id === inl.id);
+
+        let newInlines = [];
+
+        for (let i = 0; i < block.inlines.length; i++) {
+            const inline = block.inlines[i];
+            if (!(inline instanceof InlineText)) {
+                newInlines.push(inline);
+                continue;
+            }
+
+            if (i < startIdx || i > endIdx) {
+                newInlines.push(inline);
+                continue;
+            }
+
+            if (i === startIdx && i === endIdx) {
+                // Split into 3 parts
+                const p1 = inline.content.substring(0, inlineStart.offsetInInline);
+                const p2 = inline.content.substring(inlineStart.offsetInInline, inlineEnd.offsetInInline);
+                const p3 = inline.content.substring(inlineEnd.offsetInInline);
+
+                if (p1) {
+                    const inl1 = new InlineText(crypto.randomUUID());
+                    inl1.content = p1;
+                    this.copyStyles(inline, inl1);
+                    newInlines.push(inl1);
+                }
+                if (p2) {
+                    const inl2 = new InlineText(crypto.randomUUID());
+                    inl2.content = p2;
+                    this.copyStyles(inline, inl2);
+                    inl2[style] = value;
+                    newInlines.push(inl2);
+                }
+                if (p3) {
+                    const inl3 = new InlineText(crypto.randomUUID());
+                    inl3.content = p3;
+                    this.copyStyles(inline, inl3);
+                    newInlines.push(inl3);
+                }
+            } else if (i === startIdx) {
+                const p1 = inline.content.substring(0, inlineStart.offsetInInline);
+                const p2 = inline.content.substring(inlineStart.offsetInInline);
+
+                if (p1) {
+                    const inl1 = new InlineText(crypto.randomUUID());
+                    inl1.content = p1;
+                    this.copyStyles(inline, inl1);
+                    newInlines.push(inl1);
+                }
+                if (p2) {
+                    const inl2 = new InlineText(crypto.randomUUID());
+                    inl2.content = p2;
+                    this.copyStyles(inline, inl2);
+                    inl2[style] = value;
+                    newInlines.push(inl2);
+                }
+            } else if (i === endIdx) {
+                const p1 = inline.content.substring(0, inlineEnd.offsetInInline);
+                const p2 = inline.content.substring(inlineEnd.offsetInInline);
+
+                if (p1) {
+                    const inl1 = new InlineText(crypto.randomUUID());
+                    inl1.content = p1;
+                    this.copyStyles(inline, inl1);
+                    inl1[style] = value;
+                    newInlines.push(inl1);
+                }
+                if (p2) {
+                    const inl2 = new InlineText(crypto.randomUUID());
+                    inl2.content = p2;
+                    this.copyStyles(inline, inl2);
+                    newInlines.push(inl2);
+                }
+            } else {
+                const inl = new InlineText(crypto.randomUUID());
+                inl.content = inline.content;
+                this.copyStyles(inline, inl);
+                inl[style] = value;
+                newInlines.push(inl);
+            }
+        }
+
+        block.inlines = newInlines;
+        block.mergeAdjacentInlines();
+    }
+
+    private copyStyles(from: InlineText, to: InlineText) {
+        to.bold = from.bold;
+        to.italic = from.italic;
+        to.underline = from.underline;
+        to.strikethrough = from.strikethrough;
+    }
+
     insertText(position: SelectionPosition, text: string) {
         const block = this.blocks.find(b => b.id === position.blockId);
         if (!block || !(block instanceof TextBlock)) return;

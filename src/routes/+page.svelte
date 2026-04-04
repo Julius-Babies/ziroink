@@ -15,10 +15,11 @@
     })
 </script>
 
+<svelte:window onkeydowncapture={(e) => keyboardHandler?.onEvent(e)}/>
+
 <div class="w-full h-full flex flex-row">
     <div
             class="h-full flex-1 flex flex-col overflow-y-auto"
-            onkeydown={e => keyboardHandler?.onEvent?.(e)}
             role="textbox"
             tabindex="-1"
     >
