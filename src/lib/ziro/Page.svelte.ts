@@ -31,6 +31,41 @@ export class Page {
         this.selection = { start: start, end: end };
     }
 
+    insertText(position: SelectionPosition, text: string) {
+        const block = this.blocks.find(b => b.id === position.blockId);
+        if (!block || !(block instanceof TextBlock)) return;
+
+        if (block.inlines.length === 0) {
+            const newInline = new InlineText(crypto.randomUUID());
+            newInline.content = text;
+            block.inlines = [newInline];
+            return;
+        }
+
+        const contentLength = block.getContentLength();
+        if (position.offset === contentLength) {
+            const lastInline = block.inlines[block.inlines.length - 1];
+            if (lastInline instanceof InlineText) {
+                lastInline.content += text;
+            } else {
+                const newInline = new InlineText(crypto.randomUUID());
+                newInline.content = text;
+                block.inlines = [...block.inlines, newInline];
+            }
+            return;
+        }
+
+        const { inline, offsetInInline } = block.findInlineAtOffset(position.offset);
+        if (inline instanceof InlineText) {
+            inline.content = inline.content.substring(0, offsetInInline) + text + inline.content.slice(offsetInInline);
+        } else {
+            const newInline = new InlineText(crypto.randomUUID());
+            newInline.content = text;
+            const index = block.inlines.findIndex(i => i.id === inline.id);
+            block.inlines = [...block.inlines.slice(0, index), newInline, ...block.inlines.slice(index)];
+        }
+    }
+
     deleteContent(start: SelectionPosition, end: SelectionPosition) {
         const startBlock = this.blocks.find(block => block.id === start.blockId);
         const endBlock = this.blocks.find(block => block.id === end.blockId);

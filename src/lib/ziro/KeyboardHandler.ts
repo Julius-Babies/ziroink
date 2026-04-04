@@ -108,5 +108,23 @@ export class KeyboardHandler {
                 throw new Error("Non-text blocks are not yet supported")
             }
         }
+
+        if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+            event.preventDefault();
+
+            const blockIdAtCursor = this.page.selection?.start.blockId;
+            if (!blockIdAtCursor) return;
+            const block = this.page.findBlock(b => b.id === blockIdAtCursor);
+            if (!block || !(block instanceof TextBlock)) return;
+
+            if (this.page.selection?.end) {
+                this.page.deleteContent(this.page.selection.start, this.page.selection.end);
+                this.page.setSelection(this.page.selection.start, null);
+            }
+
+            const cursorOffset = this.page.selection!.start.offset;
+            this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, event.key);
+            this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset + event.key.length }, null);
+        }
     }
 }
