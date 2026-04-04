@@ -18,9 +18,16 @@ export class TextBlock implements Block{
 
     findInlineAtOffset(offset: number): { inline: Inline, offsetInInline: number } {
         let remaining = offset;
-        for (const inline of this.inlines) {
+        for (let i = 0; i < this.inlines.length; i++) {
+            const inline = this.inlines[i];
             const inlineContentLength = inline instanceof InlineText ? inline.content.length : 1;
-            if (remaining <= inlineContentLength) return { inline, offsetInInline: remaining };
+            
+            if (remaining < inlineContentLength) {
+                return { inline, offsetInInline: remaining };
+            }
+            if (remaining === inlineContentLength && i === this.inlines.length - 1) {
+                return { inline, offsetInInline: remaining };
+            }
             remaining -= inlineContentLength;
         }
 

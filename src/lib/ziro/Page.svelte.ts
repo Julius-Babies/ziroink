@@ -77,6 +77,11 @@ export class Page {
             const endInlineIdx = block.inlines.findIndex(inl => inlineEnd.inline.id === inl.id);
 
             for (let j = startInlineIdx; j <= endInlineIdx; j++) {
+                // If this is the end inline, and we haven't selected any of its characters (offsetInInline === 0), don't check it
+                if (j === endInlineIdx && inlineEnd.offsetInInline === 0 && j > startInlineIdx) {
+                    continue;
+                }
+
                 const inline = block.inlines[j];
                 if (inline instanceof InlineText) {
                     if (!inline[style]) {
