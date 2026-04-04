@@ -69,6 +69,7 @@ export class Page {
                         ...startBlock.inlines.slice(0, startIdx + (keepStart ? 1 : 0)),
                         ...startBlock.inlines.slice(endIdx + (keepEnd ? 0 : 1)),
                     ];
+                    startBlock.mergeAdjacentInlines();
                 }
             } else {
                 // Non-TextBlock: remove it
@@ -124,6 +125,7 @@ export class Page {
         // 4. Merge startBlock and endBlock
         if (startBlock instanceof TextBlock && endBlock instanceof TextBlock) {
             startBlock.inlines = [...startBlock.inlines, ...endBlock.inlines];
+            startBlock.mergeAdjacentInlines();
             this.blocks = this.blocks.filter(b => b.id !== endBlock.id);
         } else if (!(startBlock instanceof TextBlock)) {
             // startBlock is a non-text block (e.g. image): just remove it

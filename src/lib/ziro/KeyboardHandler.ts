@@ -50,32 +50,57 @@ export class KeyboardHandler {
 
         if (event.key === "Backspace") {
             event.preventDefault();
+
             const blockIdAtCursor = this.page.selection!.start.blockId;
+            const cursorOffset = this.page.selection!.start.offset;
             if (!blockIdAtCursor) return;
             const block = this.page.findBlock(b => b.id === blockIdAtCursor);
             if (!block) return;
+
             if (block instanceof TextBlock) {
-                const textBeforeCursor = block.getVisualText().slice(0, this.page.selection!.start.offset);
-                if (/*is Option*/false) {
-                    const wordSeparators = [" ", "|", "\n"]
-                    console.log("textBeforeCursor", textBeforeCursor)
-                    const lastWordSeparatorIndex = Math.max(...wordSeparators.map(s => textBeforeCursor.lastIndexOf(s)))
-                    console.log("lastWordSeparatorIndex", lastWordSeparatorIndex)
-                    // TODO
+                if (this.page.selection?.end) {
+                    this.page.deleteContent(this.page.selection.start, this.page.selection.end);
+                    this.page.setSelection(this.page.selection.start, null);
+                    return;
                 }
 
-                if (textBeforeCursor === "") {
-                    console.log("join previous with current block")
-                } else {
+                if (cursorOffset === 0) {
                     const index = this.page.blocks.indexOf(block);
                     if (index <= 0) return;
-                    const previousBlock = this.page.blocks[index];
-                    console.log("delete character before cursor")
+
+                    const previousBlock = this.page.blocks[index - 1];
+                    if (previousBlock instanceof TextBlock) {
+                        const prevContentLength = previousBlock.getContentLength();
+                        previousBlock.inlines = [...previousBlock.inlines, ...block.inlines];
+                        previousBlock.mergeAdjacentInlines();
+                        this.page.blocks = this.page.blocks.filter(b => b.id !== block.id);
+                        this.page.setSelection({ blockId: previousBlock.id, offset: prevContentLength }, null);
+                    } else {
+                        this.page.blocks = this.page.blocks.filter(b => b.id !== block.id);
+                        if (previousBlock instanceof TextBlock) {
+                            this.page.setSelection({ blockId: previousBlock.id, offset: previousBlock.getContentLength() }, null);
+                        }
+                    }
+                    return;
                 }
+
+                let deleteStartOffset: number;
+                if (event.altKey || event.metaKey) {
+                    const textBeforeCursor = block.getVisualText().slice(0, cursorOffset);
+                    const wordSeparators = [" ", "|", "\n"];
+                    const lastSeparatorIndex = Math.max(...wordSeparators.map(s => textBeforeCursor.lastIndexOf(s)));
+                    deleteStartOffset = lastSeparatorIndex === -1 ? 0 : lastSeparatorIndex + 1;
+                } else {
+                    deleteStartOffset = cursorOffset - 1;
+                }
+
+                const start = { blockId: blockIdAtCursor, offset: deleteStartOffset };
+                const end = { blockId: blockIdAtCursor, offset: cursorOffset };
+                this.page.deleteContent(start, end);
+                this.page.setSelection({ blockId: blockIdAtCursor, offset: deleteStartOffset }, null);
             } else {
                 throw new Error("Non-text blocks are not yet supported")
             }
-            console.log("backspace")
         }
     }
 }

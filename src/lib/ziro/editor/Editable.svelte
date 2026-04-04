@@ -17,6 +17,7 @@
 </script>
 
 <div
+        class="inline"
         data-ziro-editor-editable
         data-ziro-editor-editable-type={type}
         data-ziro-editor-editable-for-block-id={blockId}

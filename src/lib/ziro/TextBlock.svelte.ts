@@ -56,6 +56,19 @@ export class TextBlock implements Block{
             } else return "|"
         }, "")
     }
+
+    mergeAdjacentInlines() {
+        const merged: Inline[] = [];
+        for (const inline of this.inlines) {
+            const last = merged.length > 0 ? merged[merged.length - 1] : null;
+            if (last instanceof InlineText && inline instanceof InlineText && last.isSameStyleAs(inline)) {
+                last.content += inline.content;
+            } else {
+                merged.push(inline);
+            }
+        }
+        this.inlines = merged;
+    }
 }
 
 export abstract class Inline {
@@ -82,5 +95,13 @@ export class InlineText implements Inline {
             type: "text",
             content: this.content,
         }
+    }
+
+    /**
+     * Checks if this inline has the same style as another inline. This is used to determine if two inlines can be merged together.
+     * @param other
+     */
+    isSameStyleAs(other: InlineText): boolean {
+        return true;
     }
 }
