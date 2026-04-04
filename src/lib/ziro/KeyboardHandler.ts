@@ -1,5 +1,6 @@
 import type {Page} from "$lib/ziro/Page.svelte";
 import {InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
+import {text} from "@sveltejs/kit";
 
 export class KeyboardHandler {
     page: Page;
@@ -9,8 +10,6 @@ export class KeyboardHandler {
     }
 
     onEvent(event: KeyboardEvent) {
-        console.log(event)
-
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             const blockIdAtCursor = this.page.selection?.start.blockId
@@ -40,14 +39,43 @@ export class KeyboardHandler {
                         newBlock.inlines = [new InlineText(crypto.randomUUID())];
                     }
 
-                    this.page.insertBlock(newBlock, { type: "after_block", afterId: block.id })
+                    this.page.insertBlock(newBlock, {type: "after_block", afterId: block.id})
                     this.page.setSelection({blockId: newBlock.id, offset: 0}, null)
+                    return;
                 }
             } else {
                 throw new Error("Non-text blocks are not yet supported")
             }
+        }
 
-            console.log("creating new block")
+        if (event.key === "Backspace") {
+            event.preventDefault();
+            const blockIdAtCursor = this.page.selection!.start.blockId;
+            if (!blockIdAtCursor) return;
+            const block = this.page.findBlock(b => b.id === blockIdAtCursor);
+            if (!block) return;
+            if (block instanceof TextBlock) {
+                const textBeforeCursor = block.getVisualText().slice(0, this.page.selection!.start.offset);
+                if (/*is Option*/false) {
+                    const wordSeparators = [" ", "|", "\n"]
+                    console.log("textBeforeCursor", textBeforeCursor)
+                    const lastWordSeparatorIndex = Math.max(...wordSeparators.map(s => textBeforeCursor.lastIndexOf(s)))
+                    console.log("lastWordSeparatorIndex", lastWordSeparatorIndex)
+                    // TODO
+                }
+
+                if (textBeforeCursor === "") {
+                    console.log("join previous with current block")
+                } else {
+                    const index = this.page.blocks.indexOf(block);
+                    if (index <= 0) return;
+                    const previousBlock = this.page.blocks[index];
+                    console.log("delete character before cursor")
+                }
+            } else {
+                throw new Error("Non-text blocks are not yet supported")
+            }
+            console.log("backspace")
         }
     }
 }

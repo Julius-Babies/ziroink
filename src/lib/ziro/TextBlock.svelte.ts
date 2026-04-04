@@ -48,6 +48,14 @@ export class TextBlock implements Block{
             return acc + inlineContentLength;
         }, 0);
     }
+
+    getVisualText(): string {
+        return this.inlines.reduce((acc, inline) => {
+            if (inline instanceof InlineText) {
+                return inline.content
+            } else return "|"
+        }, "")
+    }
 }
 
 export abstract class Inline {
