@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type {Page} from "$lib/ziro/Page.svelte";
+    import type {Page, SelectionPosition} from "$lib/ziro/Page.svelte";
     import {InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
 
     let {
@@ -8,61 +8,318 @@
         page: Page
     } = $props();
 
-    function onSelectionChange() {
-        const domSelection = window.document.getSelection();
-        if (!domSelection) return;
+    let isDragging = false;
+    let dragStartPos: SelectionPosition | null = null;
+    let clickTimeout: ReturnType<typeof setTimeout> | null = null;
+    let clickCount = 0;
 
-        const startNode = domSelection.anchorNode?.parentElement;
+    function getPositionFromEvent(e: MouseEvent): SelectionPosition | null {
+        let node: Node | null = null;
+        let offset = 0;
 
-        if (!startNode) return;
-        if (!startNode.hasAttribute("data-ziro-editor-editable")) return;
+        if (document.caretPositionFromPoint) {
+            const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+            if (pos) {
+                node = pos.offsetNode;
+                offset = pos.offset;
+            }
+        } else if ((document as any).caretRangeFromPoint) {
+            const range = (document as any).caretRangeFromPoint(e.clientX, e.clientY);
+            if (range) {
+                node = range.startContainer;
+                offset = range.startOffset;
+            }
+        }
 
-        const blockId = startNode.getAttribute("data-ziro-editor-editable-for-block-id");
-        if (!blockId) return;
+        if (node) {
+            let element: Element | null = null;
+            if (node.nodeType === Node.TEXT_NODE) {
+                const parent = node.parentElement;
+                if (parent?.hasAttribute("data-ziro-editor-editable")) {
+                    element = parent;
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE && (node as Element).hasAttribute("data-ziro-editor-editable")) {
+                element = node as Element;
+                offset = 0;
+            }
 
-        const block = page.findBlock(b => b.id === blockId);
-        if (!block) throw new Error(`Cursor positioned in block ${blockId}; block was not found in page`);
+            if (element) {
+                const blockId = element.getAttribute("data-ziro-editor-editable-for-block-id");
+                const inlineId = element.getAttribute("data-ziro-editor-editable-for-block-inline-id");
+                if (blockId && inlineId) {
+                    const block = page.findBlock(b => b.id === blockId);
+                    if (block && block instanceof TextBlock) {
+                        const blockOffset = block.findOffsetByInline(inlineId);
+                        return { blockId, offset: blockOffset + offset };
+                    }
+                }
+            }
+        }
 
-        if (block instanceof TextBlock) {
-            const inlineId = startNode.getAttribute("data-ziro-editor-editable-for-block-inline-id")!;
-            const blockOffset = block.findOffsetByInline(inlineId);
-            const inlineOffset = domSelection.anchorOffset;
-            const resultingOffset = blockOffset + inlineOffset;
-            page.setSelection({blockId, offset: resultingOffset}, null);
+        // Fallback: find the closest block by Y-coordinate if dragged outside editable areas
+        const blocks = Array.from(document.querySelectorAll('[data-ziro-block-id]'));
+        if (blocks.length === 0) return null;
+
+        let closestBlock: Element | null = null;
+        let minDistance = Infinity;
+
+        for (const block of blocks) {
+            const rect = block.getBoundingClientRect();
+            
+            if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                closestBlock = block;
+                break;
+            }
+
+            const distTop = Math.abs(e.clientY - rect.top);
+            const distBottom = Math.abs(e.clientY - rect.bottom);
+            const dist = Math.min(distTop, distBottom);
+
+            if (dist < minDistance) {
+                minDistance = dist;
+                closestBlock = block;
+            }
+        }
+
+        if (closestBlock) {
+            const blockId = closestBlock.getAttribute("data-ziro-block-id");
+            if (blockId) {
+                const block = page.findBlock(b => b.id === blockId);
+                if (block && block instanceof TextBlock) {
+                    const rect = closestBlock.getBoundingClientRect();
+                    
+                    let targetOffset = 0;
+                    if (e.clientY < rect.top) {
+                        targetOffset = 0;
+                    } else if (e.clientY > rect.bottom) {
+                        targetOffset = block.getContentLength();
+                    } else {
+                        // Find the closest character offset by X within this block
+                        // Alternatively, an approximation: if we dragged way to the right, we snap to end of line.
+                        // For simplicity, we just check left/right half for block edge,
+                        // but normally users expect end-of-line if they drag horizontally off the block.
+                        const lastInline = block.inlines[block.inlines.length - 1];
+                        if (lastInline instanceof InlineText) {
+                            const inlineEl = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${lastInline.id}"]`) as HTMLElement;
+                            if (inlineEl) {
+                                const inlineRect = inlineEl.getBoundingClientRect();
+                                if (e.clientX >= inlineRect.right) {
+                                    targetOffset = block.getContentLength();
+                                } else if (e.clientX <= inlineRect.left) {
+                                    targetOffset = 0;
+                                } else {
+                                    targetOffset = e.clientX < rect.left + rect.width / 2 ? 0 : block.getContentLength();
+                                }
+                            } else {
+                                targetOffset = e.clientX < rect.left + rect.width / 2 ? 0 : block.getContentLength();
+                            }
+                        } else {
+                            targetOffset = e.clientX < rect.left + rect.width / 2 ? 0 : block.getContentLength();
+                        }
+                    }
+                    
+                    return { blockId, offset: targetOffset };
+                }
+            }
+        }
+
+        return null;
+    }
+
+    function onMouseDown(e: MouseEvent) {
+        if ((page as any).cursorXPosition !== undefined) {
+            (page as any).cursorXPosition = null;
+        }
+        
+        // Disable native selection to implement our own. 
+        // We'll sync our state back to the DOM selection manually in the effect.
+        if (e.detail > 1) {
+            // Prevent default to stop native double/triple click selection
+            e.preventDefault();
+        }
+
+        const pos = getPositionFromEvent(e);
+        if (!pos) return;
+
+        clickCount++;
+        if (clickTimeout) clearTimeout(clickTimeout);
+
+        if (clickCount === 2) {
+            // Double click: word selection
+            const block = page.findBlock(b => b.id === pos.blockId);
+            if (block instanceof TextBlock) {
+                const text = block.getVisualText();
+                const startOffset = findPrevWordBoundary(text, pos.offset);
+                const endOffset = findNextWordBoundary(text, pos.offset);
+                page.setSelection({ blockId: pos.blockId, offset: startOffset }, { blockId: pos.blockId, offset: endOffset });
+            }
+            clickTimeout = setTimeout(() => clickCount = 0, 400);
+            return;
+        }
+
+        if (clickCount === 3) {
+            // Triple click: block selection
+            const block = page.findBlock(b => b.id === pos.blockId);
+            if (block instanceof TextBlock) {
+                page.setSelection({ blockId: pos.blockId, offset: 0 }, { blockId: pos.blockId, offset: block.getContentLength() });
+            }
+            clickTimeout = setTimeout(() => clickCount = 0, 400);
+            return;
+        }
+
+        clickTimeout = setTimeout(() => clickCount = 0, 400);
+
+        isDragging = true;
+        dragStartPos = pos;
+        
+        if (e.shiftKey && page.selection) {
+            page.setSelection(page.selection.start, pos);
+            dragStartPos = page.selection.start;
         } else {
-            // TODO
-            throw new Error("Non-text blocks are not yet supported")
+            page.setSelection(pos, null);
         }
     }
 
-    function onMouseDown() {
-        page.cursorXPosition = null;
+    function onMouseMove(e: MouseEvent) {
+        if (!isDragging || !dragStartPos) return;
+
+        // Prevent native dragging of elements/text causing weird cursor artifacts
+        e.preventDefault();
+
+        const pos = getPositionFromEvent(e);
+        if (!pos) return;
+
+        // If moved outside single click range, treat as target
+        if (pos.blockId !== dragStartPos.blockId || pos.offset !== dragStartPos.offset) {
+            page.setSelection(dragStartPos, pos);
+        } else {
+            page.setSelection(dragStartPos, null);
+        }
+    }
+
+    function onMouseUp(e: MouseEvent) {
+        isDragging = false;
+        dragStartPos = null;
+    }
+
+    const WORD_SEPARATORS = [" ", "|"];
+    function findPrevWordBoundary(text: string, fromOffset: number): number {
+        let textBeforeCursor = text.slice(0, fromOffset);
+        while (textBeforeCursor.length > 0 && WORD_SEPARATORS.includes(textBeforeCursor.slice(-1))) {
+            textBeforeCursor = textBeforeCursor.slice(0, -1);
+        }
+        const lastSeparatorIndex = Math.max(...WORD_SEPARATORS.map(s => textBeforeCursor.lastIndexOf(s)));
+        return lastSeparatorIndex === -1 ? 0 : lastSeparatorIndex + 1;
+    }
+
+    function findNextWordBoundary(text: string, fromOffset: number): number {
+        let textAfterCursor = text.slice(fromOffset);
+        let i = 0;
+        while (i < textAfterCursor.length && WORD_SEPARATORS.includes(textAfterCursor[i])) i++;
+        while (i < textAfterCursor.length && !WORD_SEPARATORS.includes(textAfterCursor[i])) i++;
+        return fromOffset + i;
+    }
+
+    function getDomNodeAndOffsetForPosition(pos: SelectionPosition): { node: Node, offset: number } | null {
+        const block = page.findBlock(b => b.id === pos.blockId);
+        if (!block || !(block instanceof TextBlock)) return null;
+
+        const { inline, offsetInInline } = block.findInlineAtOffset(pos.offset);
+        if (!(inline instanceof InlineText)) return null;
+
+        const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
+        if (!inlineEditable) return null;
+
+        const anchorNode = inlineEditable.childNodes.item(0);
+        if (!anchorNode) return null;
+
+        return { node: anchorNode, offset: offsetInInline };
+    }
+
+    let selectionRects: DOMRect[] = $state([]);
+
+    function getNormalizedSelectionRects(range: Range): DOMRect[] {
+        const rects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
+        
+        // Filter out container rects that strictly enclose other rects (like full block divs)
+        return rects.filter(r1 => {
+            return !rects.some(r2 => 
+                r1 !== r2 && 
+                r2.left >= r1.left && 
+                r2.right <= r1.right && 
+                r2.top >= r1.top && 
+                r2.bottom <= r1.bottom &&
+                (r1.width > r2.width || r1.height > r2.height)
+            );
+        });
     }
 
     $effect(() => {
-        if (!page.selection || page.selection.end) return;
+        if (!page.selection) {
+            selectionRects = [];
+            return;
+        }
 
-        const block = page.findBlock(b => b.id === page.selection?.start.blockId);
-        if (!block) return;
+        const selection = window.getSelection();
+        if (!selection) return;
 
-        if (block instanceof TextBlock) {
-            const {inline, offsetInInline} = block.findInlineAtOffset(page.selection.start.offset);
-            if (inline instanceof InlineText) {
-                const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
-                if (!inlineEditable) return;
+        const startDOM = getDomNodeAndOffsetForPosition(page.selection.start);
+        if (!startDOM) return;
 
-                const anchorNode = inlineEditable.childNodes.item(0);
-
-                const selection = window.getSelection()!;
-                selection.setPosition(anchorNode, offsetInInline);
-            }
+        if (!page.selection.end) {
+            selection.setPosition(startDOM.node, startDOM.offset);
+            selectionRects = [];
         } else {
-            throw new Error("Non-text blocks are not yet supported")
+            const endDOM = getDomNodeAndOffsetForPosition(page.selection.end);
+            if (!endDOM) return;
+            
+            // Allow reverse DOM selection using setBaseAndExtent
+            selection.setBaseAndExtent(startDOM.node, startDOM.offset, endDOM.node, endDOM.offset);
+
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                selectionRects = getNormalizedSelectionRects(range);
+            } else {
+                selectionRects = [];
+            }
         }
     })
+
+    $effect(() => {
+        const handleScroll = () => {
+            if (!page.selection || !page.selection.end) return;
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+                selectionRects = getNormalizedSelectionRects(selection.getRangeAt(0));
+            }
+        };
+
+        window.addEventListener('scroll', handleScroll, true);
+        window.addEventListener('resize', handleScroll);
+
+        return () => {
+            window.removeEventListener('scroll', handleScroll, true);
+            window.removeEventListener('resize', handleScroll);
+        };
+    })
+
+    const verticalPadding = 2;
 </script>
 
+{#each selectionRects as rect}
+    <div
+        class="fixed bg-blue-400/30 rounded pointer-events-none mix-blend-multiply"
+        style="
+            top: {rect.top - verticalPadding}px;
+            left: {rect.left}px;
+            width: {rect.width}px;
+            height: {rect.height + 2*verticalPadding}px;
+        "
+    ></div>
+{/each}
+
 <svelte:document
-        onselectionchange={onSelectionChange}
         onmousedown={onMouseDown}
+        onmousemove={onMouseMove}
+        onmouseup={onMouseUp}
 />

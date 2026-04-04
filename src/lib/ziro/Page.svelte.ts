@@ -32,6 +32,23 @@ export class Page {
         this.selection = { start: start, end: end };
     }
 
+    getNormalizedSelection(): { start: SelectionPosition, end: SelectionPosition } | null {
+        if (!this.selection || !this.selection.end) return null;
+
+        const pos1 = this.selection.start;
+        const pos2 = this.selection.end;
+
+        const idx1 = this.blocks.findIndex(b => b.id === pos1.blockId);
+        const idx2 = this.blocks.findIndex(b => b.id === pos2.blockId);
+
+        if (idx1 < idx2) return { start: pos1, end: pos2 };
+        if (idx1 > idx2) return { start: pos2, end: pos1 };
+
+        return pos1.offset <= pos2.offset
+            ? { start: pos1, end: pos2 }
+            : { start: pos2, end: pos1 };
+    }
+
     insertText(position: SelectionPosition, text: string) {
         const block = this.blocks.find(b => b.id === position.blockId);
         if (!block || !(block instanceof TextBlock)) return;

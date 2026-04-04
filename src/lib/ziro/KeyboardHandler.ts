@@ -10,6 +10,30 @@ export class KeyboardHandler {
         this.page = page;
     }
 
+    private deleteSelection(): boolean {
+        const normalized = this.page.getNormalizedSelection();
+        if (normalized) {
+            this.page.deleteContent(normalized.start, normalized.end);
+            this.page.setSelection(normalized.start, null);
+            return true;
+        }
+        return false;
+    }
+
+    private updateSelection(blockId: string, offset: number, isShift: boolean) {
+        if (isShift) {
+            const start = this.page.selection!.start;
+            this.page.setSelection(start, { blockId, offset });
+        } else {
+            this.page.setSelection({ blockId, offset }, null);
+        }
+    }
+
+    private getCursorPosition(): { blockId: string, offset: number } | null {
+        if (!this.page.selection) return null;
+        return this.page.selection.end ?? this.page.selection.start;
+    }
+
     onEvent(event: KeyboardEvent) {
         if (event.key === "Enter" && event.shiftKey) {
             event.preventDefault();
@@ -19,10 +43,7 @@ export class KeyboardHandler {
             const block = this.page.findBlock(b => b.id === blockIdAtCursor);
             if (!block || !(block instanceof TextBlock)) return;
 
-            if (this.page.selection?.end) {
-                this.page.deleteContent(this.page.selection.start, this.page.selection.end);
-                this.page.setSelection(this.page.selection.start, null);
-            }
+            this.deleteSelection();
 
             const cursorOffset = this.page.selection!.start.offset;
             this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, "\n");
@@ -33,6 +54,7 @@ export class KeyboardHandler {
 
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
+            this.deleteSelection();
             const blockIdAtCursor = this.page.selection?.start.blockId
             if (!blockIdAtCursor) return;
             const block = this.page.findBlock(b => b.id === blockIdAtCursor)
@@ -73,6 +95,10 @@ export class KeyboardHandler {
         if (event.key === "Backspace") {
             event.preventDefault();
 
+            if (this.deleteSelection()) {
+                return;
+            }
+
             const blockIdAtCursor = this.page.selection!.start.blockId;
             const cursorOffset = this.page.selection!.start.offset;
             if (!blockIdAtCursor) return;
@@ -80,12 +106,6 @@ export class KeyboardHandler {
             if (!block) return;
 
             if (block instanceof TextBlock) {
-                if (this.page.selection?.end) {
-                    this.page.deleteContent(this.page.selection.start, this.page.selection.end);
-                    this.page.setSelection(this.page.selection.start, null);
-                    return;
-                }
-
                 if (cursorOffset === 0) {
                     const index = this.page.blocks.indexOf(block);
                     if (index <= 0) return;
@@ -125,6 +145,10 @@ export class KeyboardHandler {
 
         if (isArrowKey(event.key)) {
             event.preventDefault();
+            const isShift = event.shiftKey;
+            const cursorPos = this.getCursorPosition();
+            if (!cursorPos) return;
+
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
                 const domSelection = window.getSelection();
                 if (!domSelection || domSelection.rangeCount === 0) return;
@@ -135,12 +159,12 @@ export class KeyboardHandler {
                 const targetX = this.page.cursorXPosition ?? cursorRect.left;
                 const lineHeight = cursorRect.height > 0 ? cursorRect.height : 20;
 
-                const blockIdAtCursor = this.page.selection!.start.blockId;
+                const blockIdAtCursor = cursorPos.blockId;
                 const currentBlock = this.page.findBlock(b => b.id === blockIdAtCursor);
                 if (!currentBlock || !(currentBlock instanceof TextBlock)) return;
 
                 const currentPositions = buildOffsetPositions(currentBlock);
-                const currentCursorOffset = this.page.selection!.start.offset;
+                const currentCursorOffset = cursorPos.offset;
                 const currentPos = currentPositions.get(currentCursorOffset);
                 if (!currentPos) return;
 
@@ -156,7 +180,7 @@ export class KeyboardHandler {
                 if (!isTargetOutsideCurrentBlock) {
                     const targetInSameBlock = findClosestOffsetInBlock(currentBlock, currentPositions, targetY, targetX);
                     if (targetInSameBlock !== null) {
-                        this.page.setSelection({ blockId: currentBlock.id, offset: targetInSameBlock }, null);
+                        this.updateSelection(currentBlock.id, targetInSameBlock, isShift);
                         this.page.cursorXPosition = targetX;
                     }
                     return;
@@ -178,20 +202,20 @@ export class KeyboardHandler {
 
                             const bestOffset = findClosestOffsetInBlock(targetBlock, targetPositions, blockTargetY, targetX);
                             if (bestOffset !== null) {
-                                this.page.setSelection({ blockId: targetBlock.id, offset: bestOffset }, null);
+                                this.updateSelection(targetBlock.id, bestOffset, isShift);
                                 this.page.cursorXPosition = targetX;
                             }
                         }
                     }
                 } else {
                     const edgeOffset = event.key === "ArrowUp" ? 0 : currentBlock.getContentLength();
-                    this.page.setSelection({ blockId: currentBlock.id, offset: edgeOffset }, null);
+                    this.updateSelection(currentBlock.id, edgeOffset, isShift);
                     this.page.cursorXPosition = targetX;
                 }
             } else {
                 this.page.cursorXPosition = null;
-                const blockIdAtCursor = this.page.selection!.start.blockId;
-                const cursorOffset = this.page.selection!.start.offset;
+                const blockIdAtCursor = cursorPos.blockId;
+                const cursorOffset = cursorPos.offset;
                 if (!blockIdAtCursor) return;
                 const block = this.page.findBlock(b => b.id === blockIdAtCursor);
                 if (!block || !(block instanceof TextBlock)) return;
@@ -200,7 +224,7 @@ export class KeyboardHandler {
                     if (event.altKey || event.metaKey) {
                         const newOffset = findPrevWordBoundary(block.getVisualText(), cursorOffset);
                         if (newOffset < cursorOffset) {
-                            this.page.setSelection({ blockId: blockIdAtCursor, offset: newOffset }, null);
+                            this.updateSelection(blockIdAtCursor, newOffset, isShift);
                         } else if (cursorOffset === 0) {
                             const indexOfBlock = this.page.blocks.indexOf(block);
                             if (indexOfBlock <= 0) return;
@@ -208,17 +232,17 @@ export class KeyboardHandler {
                             if (previousBlock instanceof TextBlock) {
                                 const prevText = previousBlock.getVisualText();
                                 const prevWordOffset = findPrevWordBoundary(prevText, prevText.length);
-                                this.page.setSelection({ blockId: previousBlock.id, offset: prevWordOffset }, null);
+                                this.updateSelection(previousBlock.id, prevWordOffset, isShift);
                             }
                         }
                     } else if (cursorOffset > 0) {
-                        this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset - 1 }, null);
+                        this.updateSelection(blockIdAtCursor, cursorOffset - 1, isShift);
                     } else {
                         const indexOfBlock = this.page.blocks.indexOf(block);
                         if (indexOfBlock <= 0) return;
                         const previousBlock = this.page.blocks[indexOfBlock - 1];
                         if (previousBlock instanceof TextBlock) {
-                            this.page.setSelection({ blockId: previousBlock.id, offset: previousBlock.getContentLength() }, null);
+                            this.updateSelection(previousBlock.id, previousBlock.getContentLength(), isShift);
                         }
                     }
                 } else if (event.key === "ArrowRight") {
@@ -226,7 +250,7 @@ export class KeyboardHandler {
                         const text = block.getVisualText();
                         const newOffset = findNextWordBoundary(text, cursorOffset);
                         if (newOffset > cursorOffset) {
-                            this.page.setSelection({ blockId: blockIdAtCursor, offset: newOffset }, null);
+                            this.updateSelection(blockIdAtCursor, newOffset, isShift);
                         } else {
                             const indexOfBlock = this.page.blocks.indexOf(block);
                             if (indexOfBlock >= this.page.blocks.length - 1) return;
@@ -234,17 +258,17 @@ export class KeyboardHandler {
                             if (nextBlock instanceof TextBlock) {
                                 const nextText = nextBlock.getVisualText();
                                 const nextWordOffset = findNextWordBoundary(nextText, 0);
-                                this.page.setSelection({ blockId: nextBlock.id, offset: nextWordOffset }, null);
+                                this.updateSelection(nextBlock.id, nextWordOffset, isShift);
                             }
                         }
                     } else if (cursorOffset < block.getContentLength()) {
-                        this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset + 1 }, null);
+                        this.updateSelection(blockIdAtCursor, cursorOffset + 1, isShift);
                     } else {
                         const indexOfBlock = this.page.blocks.indexOf(block);
                         if (indexOfBlock >= this.page.blocks.length - 1) return;
                         const nextBlock = this.page.blocks[indexOfBlock + 1];
                         if (nextBlock instanceof TextBlock) {
-                            this.page.setSelection({ blockId: nextBlock.id, offset: 0 }, null);
+                            this.updateSelection(nextBlock.id, 0, isShift);
                         }
                     }
                 }
@@ -254,15 +278,12 @@ export class KeyboardHandler {
         if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
             event.preventDefault();
 
+            this.deleteSelection();
+
             const blockIdAtCursor = this.page.selection?.start.blockId;
             if (!blockIdAtCursor) return;
             const block = this.page.findBlock(b => b.id === blockIdAtCursor);
             if (!block || !(block instanceof TextBlock)) return;
-
-            if (this.page.selection?.end) {
-                this.page.deleteContent(this.page.selection.start, this.page.selection.end);
-                this.page.setSelection(this.page.selection.start, null);
-            }
 
             const cursorOffset = this.page.selection!.start.offset;
             this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, event.key);

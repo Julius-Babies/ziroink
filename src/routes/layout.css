@@ -1,1 +1,6 @@
 @import 'tailwindcss';
+
+[data-ziro-editor-editable]::selection {
+    background-color: transparent;
+    color: inherit;
+}

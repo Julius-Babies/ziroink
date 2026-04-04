@@ -17,7 +17,7 @@
 </script>
 
 <div
-        class="inline"
+        class="inline focus:outline-0"
         style="white-space: pre-wrap;"
         data-ziro-editor-editable
         data-ziro-editor-editable-type={type}
