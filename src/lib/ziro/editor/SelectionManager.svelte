@@ -50,6 +50,10 @@
                     const block = page.findBlock(b => b.id === blockId);
                     if (block && block instanceof TextBlock) {
                         const blockOffset = block.findOffsetByInline(inlineId);
+                        const inline = block.inlines.find(i => i.id === inlineId);
+                        if (inline && inline instanceof InlineText) {
+                            offset = Math.min(offset, inline.content.length);
+                        }
                         return { blockId, offset: blockOffset + offset };
                     }
                 }

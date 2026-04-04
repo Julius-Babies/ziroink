@@ -476,19 +476,50 @@ function buildOffsetPositions(block: TextBlock): Map<number, OffsetPosition> {
 
         for (let i = 0; i <= inline.content.length; i++) {
             const range = document.createRange();
+            let rect: DOMRect | undefined;
+            
             if (i < inline.content.length) {
                 range.setStart(textNode, i);
                 range.setEnd(textNode, i + 1);
+                const rects = range.getClientRects();
+                if (rects.length > 0) rect = rects[0];
             } else {
-                range.setStart(textNode, i - 1);
-                range.setEnd(textNode, i);
+                // Because we append \u200B to every inline, textNode.length >= inline.content.length + 1
+                // So at the very end of inline.content, index `i` points to \u200B
+                if (textNode.nodeValue && i < textNode.nodeValue.length) {
+                    range.setStart(textNode, i);
+                    range.setEnd(textNode, i + 1);
+                    const rects = range.getClientRects();
+                    if (rects.length > 0) {
+                        rect = rects[0];
+                    }
+                }
+                
+                if (!rect && i > 0) {
+                    range.setStart(textNode, i - 1);
+                    range.setEnd(textNode, i);
+                    const rects = range.getClientRects();
+                    if (rects.length > 0) rect = rects[rects.length - 1];
+                }
             }
 
-            const rects = range.getClientRects();
-            if (rects.length > 0) {
-                const rect = rects[0];
-                const x = i < inline.content.length ? rect.left : rect.right;
-                const y = rect.top + rect.height / 2;
+            if (rect) {
+                let x = i < inline.content.length ? rect.left : rect.left; // Use left of \u200B for the end position
+                let y = rect.top + rect.height / 2;
+
+                // Special handling for positions immediately after a newline, if rects don't correctly wrap
+                if (i > 0 && inline.content[i - 1] === '\n') {
+                    // Check if the \u200B rect actually dropped down.
+                    // If y is the same as the previous line (which we can't easily check here), we manually drop it.
+                    // But with \u200B, the browser should natively give the correct bounding box for \u200B on the next line.
+                    // To be safe, if we fall back to the i-1 rect (which is \n), we drop it:
+                    if (!textNode.nodeValue || i >= textNode.nodeValue.length) {
+                        const spanRect = inlineElement.getBoundingClientRect();
+                        x = spanRect.left; 
+                        y += rect.height; // approximate moving down one line
+                    }
+                }
+
                 result.set(blockOffset + i, { offset: blockOffset + i, x, y });
             }
         }
