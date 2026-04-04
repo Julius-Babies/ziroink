@@ -12,8 +12,19 @@ export class Page {
 
     updateBlockIndent(blockId: string, delta: number) {
         const block = this.blocks.find(b => b.id === blockId);
-        if (block) {
+        if (block && block instanceof TextBlock) {
             block.indentLevel = Math.max(0, Math.min(4, block.indentLevel + delta));
+        }
+    }
+
+    updateBlockList(blockId: string, listType: "unordered" | "ordered" | null, listStyle: string | null) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block && block instanceof TextBlock) {
+            block.listType = listType;
+            block.listStyle = listStyle;
+            if (listType && block.indentLevel === 0) {
+                block.indentLevel = 1;
+            }
         }
     }
 

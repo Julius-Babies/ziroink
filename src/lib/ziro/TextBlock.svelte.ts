@@ -7,6 +7,8 @@ export class TextBlock implements Block{
     inlines: Inline[] = $state([])
     variant: TextBlockVariant = $state("paragraph")
     indentLevel: number = $state(0);
+    listType: "unordered" | "ordered" | null = $state(null);
+    listStyle: string | null = $state(null);
 
     constructor(id: string) {
         this.id = id;
@@ -19,6 +21,8 @@ export class TextBlock implements Block{
             type: "text",
             variant: this.variant,
             indentLevel: this.indentLevel,
+            listType: this.listType,
+            listStyle: this.listStyle,
         }
     }
 

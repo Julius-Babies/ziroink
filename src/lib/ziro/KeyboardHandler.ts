@@ -103,16 +103,44 @@ export class KeyboardHandler {
             if (!block) return;
 
             if (block instanceof TextBlock) {
-                if (block.getVisualText() === "" && block.indentLevel > 0) {
-                    this.page.updateBlockIndent(block.id, -1);
-                    return;
+                if (block.getVisualText() === "") {
+                    if (block.listType) {
+                        this.page.updateBlockList(block.id, null, null);
+                        return;
+                    }
+                    if (block.indentLevel > 0) {
+                        this.page.updateBlockIndent(block.id, -1);
+                        return;
+                    }
                 }
             }
 
             const newBlock = new TextBlock(crypto.randomUUID())
             newBlock.indentLevel = block.indentLevel;
-
+            
             if (block instanceof TextBlock) {
+                if (!event.ctrlKey) {
+                    let listContext: TextBlock | null = null;
+                    const currentIndex = this.page.blocks.indexOf(block);
+                    for (let i = currentIndex; i >= 0; i--) {
+                        const b = this.page.blocks[i];
+                        if (b instanceof TextBlock) {
+                            if (b.indentLevel < block.indentLevel) {
+                                break;
+                            }
+                            if (b.indentLevel === block.indentLevel && b.listType) {
+                                listContext = b;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (listContext) {
+                        newBlock.listType = listContext.listType;
+                        newBlock.listStyle = listContext.listStyle;
+                    }
+                }
+
                 const inlineAtCursor = block.findInlineAtOffset(this.page.selection!.start.offset)
                 const index = block.inlines.indexOf(inlineAtCursor.inline);
                 if (inlineAtCursor.inline instanceof InlineText) {
@@ -157,6 +185,11 @@ export class KeyboardHandler {
 
             if (block instanceof TextBlock) {
                 if (cursorOffset === 0) {
+                    if (block.listType) {
+                        this.page.updateBlockList(block.id, null, null);
+                        return;
+                    }
+
                     if (block.variant !== "paragraph") {
                         this.page.updateBlockVariant(block.id, "paragraph");
                         return;
@@ -383,6 +416,21 @@ export class KeyboardHandler {
                     this.page.setSelection({blockId: block.id, offset: 0}, null);
                     this.page.cursorXPosition = null;
                     return;
+                } else if (textBefore.match(/^(\*|-|->)$/)) {
+                    this.page.updateBlockList(block.id, "unordered", textBefore);
+                    this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
+                    this.page.setSelection({blockId: block.id, offset: 0}, null);
+                    this.page.cursorXPosition = null;
+                    return;
+                } else {
+                    const orderedMatch = textBefore.match(/^([0-9]+|a|A|i|I)([\.\)])$/);
+                    if (orderedMatch) {
+                        this.page.updateBlockList(block.id, "ordered", orderedMatch[0]);
+                        this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
+                        this.page.setSelection({blockId: block.id, offset: 0}, null);
+                        this.page.cursorXPosition = null;
+                        return;
+                    }
                 }
             }
 
