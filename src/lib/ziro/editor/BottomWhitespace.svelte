@@ -13,7 +13,7 @@
         const inline = new InlineText(crypto.randomUUID())
         inline.content = "Platzhalter"
         block.inlines = [inline];
-        page.insertBlock(block);
+        page.insertBlock(block, { type: "end" });
 
         page.setSelection({blockId: block.id, offset: 0}, null)
     }
@@ -25,7 +25,7 @@
         }
 
         const block = page.blocks[page.blocks.length - 1];
-        if (block instanceof TextBlock) {
+        if (block instanceof TextBlock && block.getContentLength() === 0) {
             page.setSelection({blockId: block.id, offset: block.getContentLength()}, null)
         } else createBlockAtEndAndFocus();
     }

@@ -8,8 +8,18 @@ export class Page {
         end: SelectionPosition | null;
     } = $state(null);
 
-    insertBlock(block: Block) {
-        this.blocks = [...this.blocks, block]
+    insertBlock(block: Block, position: { type: "after_block", afterId: string } | { type: "end" }) {
+        if (position.type === "after_block") {
+            const index = this.blocks.findIndex(b => b.id === position.afterId);
+            if (index === -1) {
+                throw new Error("Failed to find block with id " + position.afterId);
+            }
+
+            this.blocks = [...this.blocks.slice(0, index + 1), block, ...this.blocks.slice(index + 1)]
+            return;
+        } else if (position.type === "end") {
+            this.blocks = [...this.blocks, block]
+        }
     }
 
     findBlock(predicate: (block: Block) => boolean) {

@@ -4,12 +4,24 @@
     import BottomWhitespace from "$lib/ziro/editor/BottomWhitespace.svelte";
     import BlockRenderer from "$lib/ziro/editor/BlockRenderer.svelte";
     import SelectionManager from "$lib/ziro/editor/SelectionManager.svelte";
+    import {KeyboardHandler} from "$lib/ziro/KeyboardHandler";
+    import {onMount} from "svelte";
 
     let page = $state(new Page());
+    let keyboardHandler: KeyboardHandler | null = $state(null);
+
+    onMount(() => {
+        keyboardHandler = new KeyboardHandler(page);
+    })
 </script>
 
 <div class="w-full h-full flex flex-row">
-    <div class="h-full flex-1 flex flex-col overflow-y-auto">
+    <div
+            class="h-full flex-1 flex flex-col overflow-y-auto"
+            onkeydown={e => keyboardHandler?.onEvent?.(e)}
+            role="textbox"
+            tabindex="-1"
+    >
         {#each page.blocks as block (block.id)}
             <BlockRenderer
                     block={block}
