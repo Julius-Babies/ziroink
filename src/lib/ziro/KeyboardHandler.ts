@@ -281,54 +281,82 @@ export class KeyboardHandler {
                 if (!block || !(block instanceof TextBlock)) return;
 
                 if (event.key === "ArrowLeft") {
-                    if (event.altKey || event.metaKey) {
+                    if (event.metaKey) {
+                        const positions = buildOffsetPositions(block);
+                        const currentPos = positions.get(cursorOffset);
+                        if (currentPos) {
+                            const lineOffsets = findClosestLine(positions, currentPos.y);
+                            if (lineOffsets.length > 0) {
+                                const minOffset = Math.min(...lineOffsets);
+                                this.updateSelection(blockIdAtCursor, minOffset, isShift);
+                            }
+                        } else {
+                            this.updateSelection(blockIdAtCursor, 0, isShift);
+                        }
+                    } else if (event.altKey) {
                         const newOffset = findPrevWordBoundary(block.getVisualText(), cursorOffset);
                         if (newOffset < cursorOffset) {
                             this.updateSelection(blockIdAtCursor, newOffset, isShift);
                         } else if (cursorOffset === 0) {
                             const indexOfBlock = this.page.blocks.indexOf(block);
-                            if (indexOfBlock <= 0) return;
-                            const previousBlock = this.page.blocks[indexOfBlock - 1];
-                            if (previousBlock instanceof TextBlock) {
-                                const prevText = previousBlock.getVisualText();
-                                const prevWordOffset = findPrevWordBoundary(prevText, prevText.length);
-                                this.updateSelection(previousBlock.id, prevWordOffset, isShift);
+                            if (indexOfBlock > 0) {
+                                const previousBlock = this.page.blocks[indexOfBlock - 1];
+                                if (previousBlock instanceof TextBlock) {
+                                    const prevText = previousBlock.getVisualText();
+                                    const prevWordOffset = findPrevWordBoundary(prevText, prevText.length);
+                                    this.updateSelection(previousBlock.id, prevWordOffset, isShift);
+                                }
                             }
                         }
                     } else if (cursorOffset > 0) {
                         this.updateSelection(blockIdAtCursor, cursorOffset - 1, isShift);
                     } else {
                         const indexOfBlock = this.page.blocks.indexOf(block);
-                        if (indexOfBlock <= 0) return;
-                        const previousBlock = this.page.blocks[indexOfBlock - 1];
-                        if (previousBlock instanceof TextBlock) {
-                            this.updateSelection(previousBlock.id, previousBlock.getContentLength(), isShift);
+                        if (indexOfBlock > 0) {
+                            const previousBlock = this.page.blocks[indexOfBlock - 1];
+                            if (previousBlock instanceof TextBlock) {
+                                this.updateSelection(previousBlock.id, previousBlock.getContentLength(), isShift);
+                            }
                         }
                     }
                 } else if (event.key === "ArrowRight") {
-                    if (event.altKey || event.metaKey) {
+                    if (event.metaKey) {
+                        const positions = buildOffsetPositions(block);
+                        const currentPos = positions.get(cursorOffset);
+                        if (currentPos) {
+                            const lineOffsets = findClosestLine(positions, currentPos.y);
+                            if (lineOffsets.length > 0) {
+                                const maxOffset = Math.max(...lineOffsets);
+                                this.updateSelection(blockIdAtCursor, maxOffset, isShift);
+                            }
+                        } else {
+                            this.updateSelection(blockIdAtCursor, block.getContentLength(), isShift);
+                        }
+                    } else if (event.altKey) {
                         const text = block.getVisualText();
                         const newOffset = findNextWordBoundary(text, cursorOffset);
                         if (newOffset > cursorOffset) {
                             this.updateSelection(blockIdAtCursor, newOffset, isShift);
                         } else {
                             const indexOfBlock = this.page.blocks.indexOf(block);
-                            if (indexOfBlock >= this.page.blocks.length - 1) return;
-                            const nextBlock = this.page.blocks[indexOfBlock + 1];
-                            if (nextBlock instanceof TextBlock) {
-                                const nextText = nextBlock.getVisualText();
-                                const nextWordOffset = findNextWordBoundary(nextText, 0);
-                                this.updateSelection(nextBlock.id, nextWordOffset, isShift);
+                            if (indexOfBlock < this.page.blocks.length - 1) {
+                                const nextBlock = this.page.blocks[indexOfBlock + 1];
+                                if (nextBlock instanceof TextBlock) {
+                                    const nextText = nextBlock.getVisualText();
+                                    const nextWordOffset = findNextWordBoundary(nextText, 0);
+                                    this.updateSelection(nextBlock.id, nextWordOffset, isShift);
+                                }
                             }
                         }
                     } else if (cursorOffset < block.getContentLength()) {
                         this.updateSelection(blockIdAtCursor, cursorOffset + 1, isShift);
                     } else {
                         const indexOfBlock = this.page.blocks.indexOf(block);
-                        if (indexOfBlock >= this.page.blocks.length - 1) return;
-                        const nextBlock = this.page.blocks[indexOfBlock + 1];
-                        if (nextBlock instanceof TextBlock) {
-                            this.updateSelection(nextBlock.id, 0, isShift);
+                        if (indexOfBlock < this.page.blocks.length - 1) {
+                            const nextBlock = this.page.blocks[indexOfBlock + 1];
+                            if (nextBlock instanceof TextBlock) {
+                                this.updateSelection(nextBlock.id, 0, isShift);
+                            }
                         }
                     }
                 }

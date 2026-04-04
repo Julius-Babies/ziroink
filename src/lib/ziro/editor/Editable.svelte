@@ -25,7 +25,7 @@
 </script>
 
 <span
-        class="inline focus:outline-0"
+        class="inline focus:outline-0 after:content-['\200B']"
         style="white-space: pre-wrap; font-weight: {bold ? 'bold' : 'inherit'}; font-style: {italic ? 'italic' : 'inherit'}; text-decoration: {underline && strikethrough ? 'underline line-through' : underline ? 'underline' : strikethrough ? 'line-through' : 'inherit'};"
         data-ziro-editor-editable
         data-ziro-editor-editable-type={type}
