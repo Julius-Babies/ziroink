@@ -1,6 +1,7 @@
 import type {Page} from "$lib/ziro/Page.svelte";
 import {InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
-import {text} from "@sveltejs/kit";
+
+const WORD_SEPARATORS = [" ", "|", "\n"];
 
 export class KeyboardHandler {
     page: Page;
@@ -86,16 +87,7 @@ export class KeyboardHandler {
 
                 let deleteStartOffset: number;
                 if (event.altKey || event.metaKey) {
-                    let textBeforeCursor = block.getVisualText().slice(0, cursorOffset);
-
-                    // Remove trailing word separators
-                    const wordSeparators = [" ", "|", "\n"];
-                    while (textBeforeCursor.length > 0 && wordSeparators.includes(textBeforeCursor.slice(-1))) {
-                        textBeforeCursor = textBeforeCursor.slice(0, -1);
-
-                    }
-                    const lastSeparatorIndex = Math.max(...wordSeparators.map(s => textBeforeCursor.lastIndexOf(s)));
-                    deleteStartOffset = lastSeparatorIndex === -1 ? 0 : lastSeparatorIndex + 1;
+                    deleteStartOffset = findPrevWordBoundary(block.getVisualText(), cursorOffset);
                 } else {
                     deleteStartOffset = cursorOffset - 1;
                 }
@@ -106,6 +98,72 @@ export class KeyboardHandler {
                 this.page.setSelection({ blockId: blockIdAtCursor, offset: deleteStartOffset }, null);
             } else {
                 throw new Error("Non-text blocks are not yet supported")
+            }
+        }
+
+        if (isArrowKey(event.key)) {
+            event.preventDefault();
+            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+
+            } else {
+                const blockIdAtCursor = this.page.selection!.start.blockId;
+                const cursorOffset = this.page.selection!.start.offset;
+                if (!blockIdAtCursor) return;
+                const block = this.page.findBlock(b => b.id === blockIdAtCursor);
+                if (!block || !(block instanceof TextBlock)) return;
+
+                if (event.key === "ArrowLeft") {
+                    if (event.altKey || event.metaKey) {
+                        const newOffset = findPrevWordBoundary(block.getVisualText(), cursorOffset);
+                        if (newOffset < cursorOffset) {
+                            this.page.setSelection({ blockId: blockIdAtCursor, offset: newOffset }, null);
+                        } else if (cursorOffset === 0) {
+                            const indexOfBlock = this.page.blocks.indexOf(block);
+                            if (indexOfBlock <= 0) return;
+                            const previousBlock = this.page.blocks[indexOfBlock - 1];
+                            if (previousBlock instanceof TextBlock) {
+                                const prevText = previousBlock.getVisualText();
+                                const prevWordOffset = findPrevWordBoundary(prevText, prevText.length);
+                                this.page.setSelection({ blockId: previousBlock.id, offset: prevWordOffset }, null);
+                            }
+                        }
+                    } else if (cursorOffset > 0) {
+                        this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset - 1 }, null);
+                    } else {
+                        const indexOfBlock = this.page.blocks.indexOf(block);
+                        if (indexOfBlock <= 0) return;
+                        const previousBlock = this.page.blocks[indexOfBlock - 1];
+                        if (previousBlock instanceof TextBlock) {
+                            this.page.setSelection({ blockId: previousBlock.id, offset: previousBlock.getContentLength() }, null);
+                        }
+                    }
+                } else if (event.key === "ArrowRight") {
+                    if (event.altKey || event.metaKey) {
+                        const text = block.getVisualText();
+                        const newOffset = findNextWordBoundary(text, cursorOffset);
+                        if (newOffset > cursorOffset) {
+                            this.page.setSelection({ blockId: blockIdAtCursor, offset: newOffset }, null);
+                        } else {
+                            const indexOfBlock = this.page.blocks.indexOf(block);
+                            if (indexOfBlock >= this.page.blocks.length - 1) return;
+                            const nextBlock = this.page.blocks[indexOfBlock + 1];
+                            if (nextBlock instanceof TextBlock) {
+                                const nextText = nextBlock.getVisualText();
+                                const nextWordOffset = findNextWordBoundary(nextText, 0);
+                                this.page.setSelection({ blockId: nextBlock.id, offset: nextWordOffset }, null);
+                            }
+                        }
+                    } else if (cursorOffset < block.getContentLength()) {
+                        this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset + 1 }, null);
+                    } else {
+                        const indexOfBlock = this.page.blocks.indexOf(block);
+                        if (indexOfBlock >= this.page.blocks.length - 1) return;
+                        const nextBlock = this.page.blocks[indexOfBlock + 1];
+                        if (nextBlock instanceof TextBlock) {
+                            this.page.setSelection({ blockId: nextBlock.id, offset: 0 }, null);
+                        }
+                    }
+                }
             }
         }
 
@@ -127,4 +185,34 @@ export class KeyboardHandler {
             this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset + event.key.length }, null);
         }
     }
+}
+
+function isArrowKey(key: string): boolean {
+    return ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key);
+}
+
+function findPrevWordBoundary(text: string, fromOffset: number): number {
+    let textBeforeCursor = text.slice(0, fromOffset);
+
+    while (textBeforeCursor.length > 0 && WORD_SEPARATORS.includes(textBeforeCursor.slice(-1))) {
+        textBeforeCursor = textBeforeCursor.slice(0, -1);
+    }
+
+    const lastSeparatorIndex = Math.max(...WORD_SEPARATORS.map(s => textBeforeCursor.lastIndexOf(s)));
+    return lastSeparatorIndex === -1 ? 0 : lastSeparatorIndex + 1;
+}
+
+function findNextWordBoundary(text: string, fromOffset: number): number {
+    let textAfterCursor = text.slice(fromOffset);
+
+    let i = 0;
+    while (i < textAfterCursor.length && WORD_SEPARATORS.includes(textAfterCursor[i])) {
+        i++;
+    }
+
+    while (i < textAfterCursor.length && !WORD_SEPARATORS.includes(textAfterCursor[i])) {
+        i++;
+    }
+
+    return fromOffset + i;
 }
