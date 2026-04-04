@@ -29,6 +29,18 @@ export class KeyboardHandler {
         }
     }
 
+    private getTargetLineOffset(block: TextBlock, currentOffset: number, isStart: boolean): number {
+        const positions = buildOffsetPositions(block);
+        const currentPos = positions.get(currentOffset);
+        if (currentPos) {
+            const lineOffsets = findClosestLine(positions, currentPos.y);
+            if (lineOffsets.length > 0) {
+                return isStart ? Math.min(...lineOffsets) : Math.max(...lineOffsets);
+            }
+        }
+        return isStart ? 0 : block.getContentLength();
+    }
+
     private getCursorPosition(): { blockId: string, offset: number } | null {
         if (!this.page.selection) return null;
         return this.page.selection.end ?? this.page.selection.start;
@@ -220,7 +232,9 @@ export class KeyboardHandler {
                 }
 
                 let deleteStartOffset: number;
-                if (event.altKey || event.metaKey) {
+                if (event.metaKey) {
+                    deleteStartOffset = this.getTargetLineOffset(block, cursorOffset, true);
+                } else if (event.altKey) {
                     deleteStartOffset = findPrevWordBoundary(block.getVisualText(), cursorOffset);
                 } else {
                     deleteStartOffset = cursorOffset - 1;
@@ -315,17 +329,7 @@ export class KeyboardHandler {
 
                 if (event.key === "ArrowLeft") {
                     if (event.metaKey) {
-                        const positions = buildOffsetPositions(block);
-                        const currentPos = positions.get(cursorOffset);
-                        if (currentPos) {
-                            const lineOffsets = findClosestLine(positions, currentPos.y);
-                            if (lineOffsets.length > 0) {
-                                const minOffset = Math.min(...lineOffsets);
-                                this.updateSelection(blockIdAtCursor, minOffset, isShift);
-                            }
-                        } else {
-                            this.updateSelection(blockIdAtCursor, 0, isShift);
-                        }
+                        this.updateSelection(blockIdAtCursor, this.getTargetLineOffset(block, cursorOffset, true), isShift);
                     } else if (event.altKey) {
                         const newOffset = findPrevWordBoundary(block.getVisualText(), cursorOffset);
                         if (newOffset < cursorOffset) {
@@ -354,17 +358,7 @@ export class KeyboardHandler {
                     }
                 } else if (event.key === "ArrowRight") {
                     if (event.metaKey) {
-                        const positions = buildOffsetPositions(block);
-                        const currentPos = positions.get(cursorOffset);
-                        if (currentPos) {
-                            const lineOffsets = findClosestLine(positions, currentPos.y);
-                            if (lineOffsets.length > 0) {
-                                const maxOffset = Math.max(...lineOffsets);
-                                this.updateSelection(blockIdAtCursor, maxOffset, isShift);
-                            }
-                        } else {
-                            this.updateSelection(blockIdAtCursor, block.getContentLength(), isShift);
-                        }
+                        this.updateSelection(blockIdAtCursor, this.getTargetLineOffset(block, cursorOffset, false), isShift);
                     } else if (event.altKey) {
                         const text = block.getVisualText();
                         const newOffset = findNextWordBoundary(text, cursorOffset);
