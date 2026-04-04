@@ -102,7 +102,15 @@ export class KeyboardHandler {
             const block = this.page.findBlock(b => b.id === blockIdAtCursor)
             if (!block) return;
 
+            if (block instanceof TextBlock) {
+                if (block.getVisualText() === "" && block.indentLevel > 0) {
+                    this.page.updateBlockIndent(block.id, -1);
+                    return;
+                }
+            }
+
             const newBlock = new TextBlock(crypto.randomUUID())
+            newBlock.indentLevel = block.indentLevel;
 
             if (block instanceof TextBlock) {
                 const inlineAtCursor = block.findInlineAtOffset(this.page.selection!.start.offset)

@@ -23,10 +23,28 @@
             default: return "mt-2";
         }
     }
+
+    let isFocused = $derived(page.selection?.start.blockId === block.id);
+    let isEmpty = $derived(block instanceof TextBlock && block.getContentLength() === 0);
+    let showPlaceholder = $derived(isFocused && isEmpty);
+
+    function getPlaceholderText(block: TextBlock) {
+        if (block.variant === "paragraph") return "Tippen, oder / für Befehle";
+        if (block.variant === "h1") return "Überschrift 1";
+        if (block.variant === "h2") return "Überschrift 2";
+        if (block.variant === "h3") return "Überschrift 3";
+        if (block.variant === "h4") return "Überschrift 4";
+        if (block.variant === "h5") return "Überschrift 5";
+        if (block.variant === "h6") return "Überschrift 6";
+        return "";
+    }
 </script>
 
 {#if block instanceof TextBlock}
-    <div class="w-full {getVariantClass(block)}" style="margin-left: {block.indentLevel * 32}px;" data-ziro-block-id={block.id}>
+    <div class="relative w-full {getVariantClass(block)}" style="margin-left: {block.indentLevel * 32}px;" data-ziro-block-id={block.id}>
+        {#if showPlaceholder}
+            <div class="absolute left-0 top-0 text-gray-400 pointer-events-none select-none">{getPlaceholderText(block)}</div>
+        {/if}
         {#each block.inlines as inline, index (inline.id)}{#if index === 0 && !(inline instanceof InlineText)}<Editable
                         inlineId={inline.id}
                         type="inline"
