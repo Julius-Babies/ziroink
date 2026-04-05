@@ -1,14 +1,122 @@
 import type {Page} from "$lib/ziro/Page.svelte";
 import {InlineSymbol, InlineText, type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte";
 import {buildOffsetPositions, findClosestLine, handleVerticalNavigation} from "$lib/ziro/VerticalNavigation";
+import {PasteHandler} from "$lib/ziro/PasteHandler";
 
 const WORD_SEPARATORS = [" ", "|"];
+
+function isEmoji(str: string): boolean {
+    const emojiRegex = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F/u;
+    return emojiRegex.test(str);
+}
 
 export class KeyboardHandler {
     page: Page;
 
     constructor(page: Page) {
         this.page = page;
+    }
+
+    onBeforeInput(event: InputEvent) {
+        if (event.data) {
+            const segments = [...new Intl.Segmenter().segment(event.data)];
+            const hasEmoji = segments.some(s => isEmoji(s.segment));
+            if (hasEmoji) {
+                event.preventDefault();
+
+                this.deleteSelection();
+
+                const blockIdAtCursor = this.page.selection?.start.blockId;
+                if (!blockIdAtCursor) return;
+                const block = this.page.findBlock(b => b.id === blockIdAtCursor);
+                if (!block || !(block instanceof TextBlock)) return;
+
+                const cursorOffset = this.page.selection!.start.offset;
+
+                for (const segment of segments) {
+                    if (isEmoji(segment.segment)) {
+                        const emojiSymbol = new InlineSymbol(crypto.randomUUID(), {type: "emoji", emoji: segment.segment});
+                        this.page.insertInlineAtOffset(blockIdAtCursor, cursorOffset, emojiSymbol);
+                        this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset + 1}, null);
+                    } else {
+                        this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, segment.segment);
+                        this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset + segment.segment.length}, null);
+                    }
+                }
+                this.page.cursorXPosition = null;
+            }
+        }
+    }
+
+    onPaste(event: ClipboardEvent) {
+        const clipboardData = event.clipboardData;
+        if (!clipboardData) return;
+
+        const plainText = clipboardData.getData("text/plain");
+        const htmlText = clipboardData.getData("text/html");
+
+        const segments = plainText ? [...new Intl.Segmenter().segment(plainText)] : [];
+        const hasEmoji = segments.some(s => isEmoji(s.segment));
+        const hasNewlines = plainText.includes("\n");
+        const hasMultipleLines = plainText.split("\n").filter((l: string) => l.trim()).length > 1;
+
+        console.log("Paste detected:", {
+            plainText,
+            htmlText,
+            hasHTML: !!htmlText,
+            hasEmoji,
+            hasNewlines,
+            hasMultipleLines,
+            segmentCount: segments.length,
+            segments: segments.map(s => ({ segment: s.segment, isEmoji: isEmoji(s.segment) })),
+        });
+
+        if (!htmlText) {
+            const pasteHandler = new PasteHandler(this.page);
+            const { resultingBlocks } = pasteHandler.fromPlaintext(plainText);
+            
+            if (resultingBlocks.length === 0) return;
+            
+            this.deleteSelection();
+            
+            const cursorBlockId = this.page.selection?.start.blockId;
+            if (!cursorBlockId) return;
+            
+            const cursorBlock = this.page.findBlock(b => b.id === cursorBlockId);
+            if (!cursorBlock) return;
+            
+            const cursorBlockIndex = this.page.blocks.indexOf(cursorBlock);
+            const isCursorBlockEmpty = cursorBlock instanceof TextBlock && cursorBlock.getContentLength() === 0;
+
+            if (resultingBlocks.length > 1 && isCursorBlockEmpty) {
+                this.page.blocks = this.page.blocks.filter(b => b.id !== cursorBlockId);
+                const newCursorBlockIndex = cursorBlockIndex;
+                
+                for (let i = 0; i < resultingBlocks.length; i++) {
+                    const block = resultingBlocks[i];
+                    const insertAfterId = i === 0 
+                        ? (newCursorBlockIndex > 0 ? this.page.blocks[newCursorBlockIndex - 1].id : null)
+                        : this.page.blocks[newCursorBlockIndex + i - 1].id;
+                    
+                    if (insertAfterId) {
+                        this.page.insertBlock(block, { type: "after_block", afterId: insertAfterId });
+                    } else {
+                        this.page.blocks = [block, ...this.page.blocks];
+                    }
+                }
+            } else {
+                for (let i = 0; i < resultingBlocks.length; i++) {
+                    const block = resultingBlocks[i];
+                    this.page.insertBlock(block, { type: "after_block", afterId: i === 0 ? cursorBlockId : this.page.blocks[cursorBlockIndex + i].id });
+                }
+            }
+            
+            const firstNewBlock = resultingBlocks[0];
+            this.page.setSelection({ blockId: firstNewBlock.id, offset: firstNewBlock.getContentLength() }, null);
+            this.page.cursorXPosition = null;
+        }
+
+        event.preventDefault();
     }
 
     private deleteSelection(): boolean {
@@ -346,21 +454,21 @@ export class KeyboardHandler {
             if (textBeforeCursor.endsWith("(/")) {
                 event.preventDefault();
                 this.page.deleteContent({ blockId: blockIdAtCursor, offset: cursorPos.offset - 2 }, { blockId: blockIdAtCursor, offset: cursorPos.offset });
-                const newCharInline = new InlineSymbol(crypto.randomUUID(), "check");
+                const newCharInline = new InlineSymbol(crypto.randomUUID(), {type: "check"});
                 this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
                 this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
                 return;
             } else if (textBeforeCursor.endsWith("(x")) {
                 event.preventDefault();
                 this.page.deleteContent({ blockId: blockIdAtCursor, offset: cursorPos.offset - 2 }, { blockId: blockIdAtCursor, offset: cursorPos.offset });
-                const newCharInline = new InlineSymbol(crypto.randomUUID(), "x");
+                const newCharInline = new InlineSymbol(crypto.randomUUID(), {type: "x"});
                 this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
                 this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
                 return;
             } else if (textBeforeCursor.endsWith("(?")) {
                 event.preventDefault();
                 this.page.deleteContent({ blockId: blockIdAtCursor, offset: cursorPos.offset - 2 }, { blockId: blockIdAtCursor, offset: cursorPos.offset });
-                const newCharInline = new InlineSymbol(crypto.randomUUID(), "question_mark");
+                const newCharInline = new InlineSymbol(crypto.randomUUID(), {type: "question_mark"});
                 this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
                 this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
                 return;

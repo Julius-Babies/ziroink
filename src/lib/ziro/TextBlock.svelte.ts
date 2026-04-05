@@ -115,12 +115,17 @@ export class InlineSymbol implements Inline {
     toObject() {
         return {
             id: this.id,
-            symbol: this.symbol,
+            symbolType: this.symbol.type,
+            emoji: this.symbol.type === "emoji" ? this.symbol.emoji : undefined,
         }
+    }
+
+    getEmoji(): string | null {
+        return this.symbol.type === "emoji" ? this.symbol.emoji : null;
     }
 }
 
-export type InlineSymbolVariant = "check" | "x" | "question_mark"
+export type InlineSymbolVariant = {type: "check"} | {type: "x"} | {type: "question_mark"} | {type: "emoji", emoji: string}
 
 export class InlineText implements Inline {
     id: string;

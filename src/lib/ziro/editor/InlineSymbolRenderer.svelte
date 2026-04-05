@@ -22,7 +22,7 @@
         paragraph: { container: "w-4 h-4", icon: 12 },
     };
 
-    const size = sizeMap[variant] ?? sizeMap.paragraph;
+    const size = $derived(sizeMap[variant] ?? sizeMap.paragraph);
 </script>
 
 <div
@@ -31,22 +31,24 @@
         data-ziro-editor-editable-for-block-id={blockId}
         data-ziro-editor-editable-for-block-inline-id={symbol.id}
 >
-    {#if symbol.symbol === "check"}
+    {#if symbol.symbol.type === "check"}
         <div
                 class="inline-flex rounded-full bg-green-700 text-white items-center justify-center {size.container}"
         >
             <Check size={size.icon}/>
         </div>
-    {:else if symbol.symbol === "x"}
+    {:else if symbol.symbol.type === "x"}
         <div
                 class="inline-flex rounded-full bg-red-700 text-white items-center justify-center {size.container}"
         >
             <X size={size.icon}/>
         </div>
-    {:else if symbol.symbol === "question_mark"}
+    {:else if symbol.symbol.type === "question_mark"}
         <div
                 class="inline-flex rounded-full bg-blue-700 text-white items-center justify-center {size.container}"
         >?
         </div>
+    {:else if symbol.symbol.type === "emoji"}
+        <span class="emoji text-lg leading-none select-none">{symbol.symbol.emoji}</span>
     {/if}
 </div>

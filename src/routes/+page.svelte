@@ -100,17 +100,26 @@
             createBlock("h2", [createText("Inline Symbols")]),
             createBlock("paragraph", [
                 createText("You can insert special symbols using shortcuts: "),
-                createSymbol("check"),
+                createSymbol({type: "check"}),
                 createText(" via "),
                 createText("(/)", {code: true}),
                 createText(", "),
-                createSymbol("x"),
+                createSymbol({type: "x"}),
                 createText(" via "),
                 createText("(x)", {code: true}),
                 createText(" and "),
-                createSymbol("question_mark"),
+                createSymbol({type: "question_mark"}),
                 createText(" via "),
                 createText("(?)", {code: true}),
+            ]),
+            createBlock("paragraph", [
+                createText("Emojis are also supported: "),
+                createSymbol({type: "emoji", emoji: "🚀"}),
+                createText(" "),
+                createSymbol({type: "emoji", emoji: "🎉"}),
+                createText(" "),
+                createSymbol({type: "emoji", emoji: "🔥"}),
+                createText(" — just paste or type them!"),
             ]),
             createBlock("paragraph", []),
         ];
@@ -126,7 +135,7 @@
     })
 </script>
 
-<svelte:window onkeydowncapture={(e) => keyboardHandler?.onEvent(e)}/>
+<svelte:window onkeydowncapture={(e) => keyboardHandler?.onEvent(e)} onbeforeinputcapture={(e) => keyboardHandler?.onBeforeInput(e)} onpastecapture={(e) => keyboardHandler?.onPaste(e)}/>
 
 <div class="w-full h-full flex flex-row">
     <div
