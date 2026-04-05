@@ -1,4 +1,4 @@
-import type {Page} from "$lib/ziro/Page.svelte.js";
+import {isNonCollapsedSelection, type NonCollapsedSelection, type Page} from "$lib/ziro/Page.svelte.js";
 import {type Inline, InlineSymbol, InlineText, type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte.js";
 import {buildOffsetPositions, findClosestLine, handleVerticalNavigation} from "$lib/ziro/VerticalNavigation";
 import {PasteHandler} from "$lib/ziro/PasteHandler";
@@ -223,21 +223,22 @@ export class KeyboardHandler {
 
         if (isToggleStyle(event)) {
             const key = event.key.toLowerCase();
+            if (!isNonCollapsedSelection(this.page.selection)) return;
             if (key === "b") {
                 event.preventDefault();
-                this.page.toggleStyle("bold");
+                this.page.toggleStyle("bold", { forceTo: null, onSelection: this.page.selection });
                 return;
             } else if (key === "i") {
                 event.preventDefault();
-                this.page.toggleStyle("italic");
+                this.page.toggleStyle("italic", { forceTo: null, onSelection: this.page.selection });
                 return;
             } else if (key === "u") {
                 event.preventDefault();
-                this.page.toggleStyle("underline");
+                this.page.toggleStyle("underline", { forceTo: null, onSelection: this.page.selection });
                 return;
             } else if (key === "j") {
                 event.preventDefault();
-                this.page.toggleStyle("strikethrough");
+                this.page.toggleStyle("strikethrough", { forceTo: null, onSelection: this.page.selection });
                 return;
             }
         }
@@ -531,6 +532,103 @@ export class KeyboardHandler {
                 this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
                 this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
                 return;
+            }
+        }
+
+        if (event.key === "*") {
+            const blockIdAtCursor = this.page.selection?.start.blockId;
+            if (!blockIdAtCursor) return;
+            const block = this.page.findBlock(b => b.id === blockIdAtCursor);
+            if (!block || !(block instanceof TextBlock)) return;
+
+            const cursorOffset = this.page.selection!.start.offset;
+            const textBefore = block.getVisualText().slice(0, cursorOffset);
+
+            const textWithoutMarkdownConversion = textBefore + event.key
+            if (textWithoutMarkdownConversion.endsWith("**")) {
+                const positionOfPreviousDoubleStar = textBefore.match(/\*\*(?!\*)/g)?.reduce((lastIndex, match) => {
+                    const index = textBefore.indexOf(match, lastIndex);
+                    return index === -1 ? lastIndex : index + 1;
+                }, -1) ?? -1;
+
+                if (positionOfPreviousDoubleStar !== -1) {
+                    const selection: NonCollapsedSelection = {
+                        start: {
+                            blockId: blockIdAtCursor,
+                            offset: positionOfPreviousDoubleStar - 1,
+                        },
+                        end: {
+                            blockId: blockIdAtCursor,
+                            offset: textWithoutMarkdownConversion.length - 1,
+                        }
+                    }
+
+                    event.preventDefault();
+                    this.page.toggleStyle("bold", {forceTo: true, onSelection: selection})
+
+                    const selectionForEndStar: NonCollapsedSelection = {
+                        start: {
+                            blockId: blockIdAtCursor,
+                            offset: cursorOffset - 1,
+                        },
+                        end: {
+                            blockId: blockIdAtCursor,
+                            offset: cursorOffset,
+                        }
+                    }
+                    this.page.deleteContent(selectionForEndStar.start, selectionForEndStar.end);
+
+                    const selectionForStartStars: NonCollapsedSelection = {
+                        start: {
+                            blockId: blockIdAtCursor,
+                            offset: positionOfPreviousDoubleStar - 1,
+                        },
+                        end: {
+                            blockId: blockIdAtCursor,
+                            offset: positionOfPreviousDoubleStar + 1,
+                        }
+                    }
+                    this.page.deleteContent(selectionForStartStars.start, selectionForStartStars.end);
+                    this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset - 3}, null)
+
+                    return;
+                }
+            } else if (textWithoutMarkdownConversion.endsWith("*")) {
+                const positionOfPreviousSingleStar = textBefore.match(/\*(?!\*)/g)?.reduce((lastIndex, match) => {
+                    const index = textBefore.indexOf(match, lastIndex);
+                    return index === -1 ? lastIndex : index + 1;
+                }, -1) ?? -1;
+
+                if (positionOfPreviousSingleStar !== -1) {
+                    const selection: NonCollapsedSelection = {
+                        start: {
+                            blockId: blockIdAtCursor,
+                            offset: positionOfPreviousSingleStar,
+                        },
+                        end: {
+                            blockId: blockIdAtCursor,
+                            offset: textWithoutMarkdownConversion.length - 1,
+                        }
+                    }
+
+                    event.preventDefault();
+                    this.page.toggleStyle("italic", {forceTo: true, onSelection: selection})
+
+                    const selectionForStartStar: NonCollapsedSelection = {
+                        start: {
+                            blockId: blockIdAtCursor,
+                            offset: positionOfPreviousSingleStar - 1,
+                        },
+                        end: {
+                            blockId: blockIdAtCursor,
+                            offset: positionOfPreviousSingleStar,
+                        }
+                    }
+                    this.page.deleteContent(selectionForStartStar.start, selectionForStartStar.end);
+                    this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset - 1}, null)
+
+                    return;
+                }
             }
         }
 

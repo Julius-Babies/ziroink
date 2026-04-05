@@ -1,13 +1,23 @@
 import type {Block} from "$lib/ziro/Block";
 import {Inline, InlineText, type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte";
 
+export type Selection = {
+    start: SelectionPosition;
+    end: SelectionPosition | null;
+}
+
+export type NonCollapsedSelection = {
+    start: SelectionPosition;
+    end: SelectionPosition;
+}
+
+export function isNonCollapsedSelection(selection: null | Selection): selection is NonCollapsedSelection {
+    return selection !== null && selection.end !== null;
+}
 
 export class Page {
     blocks: Block[] = $state([])
-    selection: null | {
-        start: SelectionPosition;
-        end: SelectionPosition | null;
-    } = $state(null);
+    selection: null | Selection = $state(null);
     cursorXPosition: number | null = $state(null);
 
     updateBlockIndent(blockId: string, delta: number) {
@@ -57,11 +67,11 @@ export class Page {
         this.selection = { start: start, end: end };
     }
 
-    getNormalizedSelection(): { start: SelectionPosition, end: SelectionPosition } | null {
-        if (!this.selection || !this.selection.end) return null;
+    getNormalizedSelection(selection: Selection | null = this.selection): { start: SelectionPosition, end: SelectionPosition } | null {
+        if (!selection || !selection.end) return null;
 
-        const pos1 = this.selection.start;
-        const pos2 = this.selection.end;
+        const pos1 = selection.start;
+        const pos2 = selection.end;
 
         const idx1 = this.blocks.findIndex(b => b.id === pos1.blockId);
         const idx2 = this.blocks.findIndex(b => b.id === pos2.blockId);
@@ -74,8 +84,14 @@ export class Page {
             : { start: pos2, end: pos1 };
     }
 
-    toggleStyle(style: "bold" | "italic" | "underline" | "strikethrough") {
-        const sel = this.getNormalizedSelection();
+    toggleStyle(
+        style: "bold" | "italic" | "underline" | "strikethrough",
+        config: {
+            forceTo: boolean | null,
+            onSelection: NonCollapsedSelection
+        }
+    ) {
+        const sel = this.getNormalizedSelection(config.onSelection);
         if (!sel) return;
 
         const startIdx = this.blocks.findIndex(b => b.id === sel.start.blockId);
@@ -118,7 +134,7 @@ export class Page {
             if (!allHaveStyle) break;
         }
 
-        const targetValue = !allHaveStyle;
+        const targetValue = config.forceTo ?? !allHaveStyle;
 
         // Step 2: Apply the style to the selection range
         for (let i = startIdx; i <= endIdx; i++) {
