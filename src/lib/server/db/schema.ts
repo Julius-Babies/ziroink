@@ -1,5 +1,6 @@
-import { relations, sql } from "drizzle-orm";
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import {relations, sql} from "drizzle-orm";
+import type {AnySQLiteColumn} from "drizzle-orm/sqlite-core";
+import {index, integer, sqliteTable, text} from "drizzle-orm/sqlite-core";
 
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
@@ -105,3 +106,14 @@ export const accountRelations = relations(account, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+export const page = sqliteTable(
+    "page", {
+        id: text("id").primaryKey(),
+        ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+        parentId: text("parent_id").references((): AnySQLiteColumn => page.id, { onDelete: "cascade" }),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+            .notNull(),
+    }
+)
