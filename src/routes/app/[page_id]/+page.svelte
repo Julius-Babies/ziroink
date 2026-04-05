@@ -2,18 +2,22 @@
     import {showPageDeveloperDetails} from "../state";
     import {Tabs, TabsList, TabsTrigger} from "$lib/components/ui/tabs";
     import {JsonView} from "@zerodevx/svelte-json-view";
-    import { fly } from "svelte/transition";
-    import { ClientFactory } from "$lib/ziro/client/ClientModels.svelte";
-    import { generateKeyBetween } from "fractional-indexing";
-    import { KeyboardHandler } from "$lib/ziro/editor/keyboard/KeyboardHandler";
+    import {fly} from "svelte/transition";
+    import {ClientFactory} from "$lib/ziro/client/ClientModels.svelte";
+    import {generateKeyBetween} from "fractional-indexing";
+    import {KeyboardHandler} from "$lib/ziro/editor/keyboard/KeyboardHandler";
     import BlockRenderer from "$lib/ziro/editor/BlockRenderer.svelte";
     import BottomWhitespace from "$lib/ziro/editor/BottomWhitespace.svelte";
     import SelectionManager from "$lib/ziro/editor/SelectionManager.svelte";
-    import { onMount } from "svelte";
-    import { v4 as uuidv4 } from "uuid";
+    import {v4 as uuidv4} from "uuid";
     import buildTitle from "$lib/components/ui/buildTitle";
+    import findUuidAtEnd from "$lib/util/findUuidAtEnd";
+    import {goto} from "$app/navigation";
+    import {untrack} from "svelte";
+    import {BaseTextBlock} from "$lib/ziro/BaseTextBlock";
 
     let { data } = $props();
+
 
     let visibleDevTab: "document_tree" | "sync_queue" = $state("document_tree");
 
@@ -126,14 +130,20 @@
 
     let eventSource: EventSource | null = null;
 
+    const pageId = $derived(findUuidAtEnd(data.page.id))
+
     $effect(() => {
-        if (!data.page.id) return;
+        const currentId = pageId;
+        if (!currentId) return;
+        
         clientId = uuidv4();
         keyboardHandler = new KeyboardHandler(page);
         const interval = setInterval(syncChanges, 500);
 
-        eventSource = new EventSource(`/api/pages/${data.page.id}/events`);
-        eventSource.onmessage = (event) => {
+        const source = new EventSource(`/api/pages/${currentId}/events`);
+        eventSource = source;
+        
+        source.onmessage = (event) => {
             try {
                 const payload = JSON.parse(event.data);
                 handleExternalSync(payload);
@@ -144,20 +154,60 @@
 
         return () => {
             clearInterval(interval);
-            eventSource?.close();
+            source.close();
+            if (eventSource === source) eventSource = null;
         };
+    })
+
+    let pageTitle = $derived.by(() => {
+        const firstBlock = page.blocks[0];
+        if (firstBlock instanceof BaseTextBlock) {
+            return firstBlock.toDisplayText();
+        }
+        return "Unbenannt";
     })
 
     let title = $derived.by(() => {
         const TITLE_MAX_LENGTH = 40;
-        const firstBlock = page.blocks[0];
-        if (firstBlock) {
-            let text = firstBlock.toDisplayText();
-            if (text.length > TITLE_MAX_LENGTH) text = text.slice(0, TITLE_MAX_LENGTH) + "...";
-            if (text) return buildTitle(text);
-        }
-        return buildTitle("Unbenannt");
+        let t = pageTitle;
+        if (t.length > TITLE_MAX_LENGTH) t = t.slice(0, TITLE_MAX_LENGTH) + "...";
+        return buildTitle(t);
     });
+
+    $effect(() => {
+        // We only want to run the URL sync when pageTitle or pageId changes
+        const currentTitle = pageTitle;
+        const currentId = pageId;
+
+        // Use a microtask to avoid potentially conflicting with Svelte's render cycle
+        // and ensure we're not blocking the main thread during input.
+        Promise.resolve().then(() => {
+            untrack(() => {
+                if (!currentTitle || !currentId) return;
+
+                const MAX_URL_PAGE_NAME_LENGTH = 30;
+                let slug = currentTitle
+                    .trim()
+                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
+                    .replace(/[^a-zA-Z0-9\s-]/g, '')
+                    .replace(/[\s\\]+/g, '-')
+                    .replace(/-+/g, '-')
+                    .slice(0, MAX_URL_PAGE_NAME_LENGTH);
+
+                if (!slug) slug = "unbenannt";
+
+                const newUrl = `/app/${slug}-${currentId}`;
+                
+                // Check window.location directly to avoid reactive dependency on the current URL
+                if (window.location.pathname !== newUrl) {
+                    // We use history.replaceState directly for URL updates that don't need 
+                    // SvelteKit's full navigation lifecycle, which is much safer for 
+                    // keeping the current component state alive and preventing re-loads.
+                    window.history.replaceState(window.history.state, '', newUrl);
+                }
+            });
+        });
+    })
 </script>
 
 <svelte:head>

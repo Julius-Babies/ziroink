@@ -273,8 +273,11 @@
 
             return { node: anchorNode, offset: Math.min(offsetInInline, (anchorNode as Text).length) };
         } else if (inline instanceof BaseInlineSymbol) {
-            // If we are at offset 1 of a symbol, it means the cursor is AFTER the symbol.
-            // If the next inline is text, we should ideally place the cursor at offset 0 of that text.
+            const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
+            if (!inlineEditable) return null;
+
+            // If we are at offset 1 (AFTER) of a symbol, we strongly prefer jumping to the NEXT inline
+            // if it's a text inline, as browsers render carets in text nodes much more reliably.
             if (offsetInInline === 1 && inlineIndex < block.inlines.length - 1) {
                 const next = block.inlines[inlineIndex + 1];
                 if (next instanceof BaseInlineText) {
@@ -287,13 +290,43 @@
                                 break;
                             }
                         }
-                        if (nextNode) return { node: nextNode, offset: 0 };
+                        // Even if there's no text node (empty inline), targeting the inline element at offset 0 
+                        // is often better than targeting a symbol at offset 1.
+                        return { node: nextNode || nextEditable, offset: 0 };
                     }
                 }
             }
 
-            const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
-            if (!inlineEditable) return null;
+            // If we are at offset 0 (BEFORE) a symbol and there's a PREVIOUS text inline, jump to its end.
+            if (offsetInInline === 0 && inlineIndex > 0) {
+                const prev = block.inlines[inlineIndex - 1];
+                if (prev instanceof BaseInlineText) {
+                    const prevEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${prev.id}"]`) as HTMLElement;
+                    if (prevEditable) {
+                        let prevNode: Node | null = null;
+                        for (let i = 0; i < prevEditable.childNodes.length; i++) {
+                            if (prevEditable.childNodes[i].nodeType === Node.TEXT_NODE) {
+                                prevNode = prevEditable.childNodes[i];
+                                break;
+                            }
+                        }
+                        if (prevNode) return { node: prevNode, offset: (prevNode as Text).length };
+                    }
+                }
+            }
+
+            // If we're stuck on the symbol itself (e.g. symbol is the only thing in the block),
+            // we MUST target the parent container and use the index-based offset.
+            // Targeting the symbol element directly with offset 0/1 is the primary cause of invisible carets.
+            const parent = inlineEditable.parentNode;
+            if (parent) {
+                const index = Array.from(parent.childNodes).indexOf(inlineEditable);
+                if (index !== -1) {
+                    // offset: index places it BEFORE, index + 1 places it AFTER
+                    return { node: parent, offset: index + offsetInInline };
+                }
+            }
+
             return { node: inlineEditable, offset: offsetInInline };
         }
 

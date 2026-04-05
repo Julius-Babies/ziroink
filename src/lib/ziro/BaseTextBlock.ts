@@ -88,6 +88,16 @@ export abstract class BaseTextBlock implements Block {
         }, "")
     }
 
+    getAsciiText(): string {
+        return this.inlines.reduce((acc, inline) => {
+            if (inline instanceof BaseInlineText) {
+                return acc + inline.content;
+            }
+
+            return acc;
+        }, "");
+    }
+
     /**
      * Returns a string that represents the content of this TextBlock. Not to be confused with [getVisualText] which
      * returns a string to determine caret positions, this one tries to create the best string variant of the inlines.

@@ -3,6 +3,7 @@ import { db } from "$lib/server/db";
 import { block as blockTable, page as pageTable } from "$lib/server/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "$lib/auth";
+import findUuidAtEnd from "$lib/util/findUuidAtEnd";
 
 export const load = async ({ params, request }) => {
     const session = await auth.api.getSession({
@@ -13,7 +14,7 @@ export const load = async ({ params, request }) => {
         throw error(401, "Unauthorized");
     }
 
-    const pageId = params.page_id;
+    const pageId = findUuidAtEnd(params.page_id);
 
     const targetPage = await db.query.page.findFirst({
         where: eq(pageTable.id, pageId)
