@@ -46,6 +46,8 @@ export abstract class BasePage {
     }
 
     updateBlockIndent(blockId: string, delta: number) {
+        if (this.blocks.length > 0 && this.blocks[0].id === blockId) return; // Title block cannot be indented
+        
         const block = this.blocks.find(b => b.id === blockId);
         if (block && block instanceof BaseTextBlock) {
             const oldIndent = block.indentLevel;
@@ -60,6 +62,8 @@ export abstract class BasePage {
     }
 
     updateBlockList(blockId: string, listType: "unordered" | "ordered" | null, listStyle: ListStyle | null) {
+        if (this.blocks.length > 0 && this.blocks[0].id === blockId) return; // Title block cannot be a list
+
         const block = this.blocks.find(b => b.id === blockId);
         if (block && block instanceof BaseTextBlock) {
             const oldListType = block.listType;
@@ -81,6 +85,8 @@ export abstract class BasePage {
     }
 
     updateBlockVariant(blockId: string, variant: "paragraph" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
+        if (this.blocks.length > 0 && this.blocks[0].id === blockId) return; // Title block variant cannot be changed
+
         const block = this.blocks.find(b => b.id === blockId);
         if (block && block instanceof BaseTextBlock) {
             const oldVariant = block.variant;
@@ -106,14 +112,14 @@ export abstract class BasePage {
             block.sortKey = generateKeyBetween(prevKey, nextKey);
 
             this.blocks = [...this.blocks.slice(0, index + 1), block, ...this.blocks.slice(index + 1)]
-            this.emit({ type: "block_inserted", blockId: block.id, position });
+            this.emit({ type: "block_inserted", blockId: block.id, position, blockData: block.toObject() });
             return;
         } else if (position.type === "end") {
             const prevKey = this.blocks.length > 0 ? this.blocks[this.blocks.length - 1].sortKey : null;
             block.sortKey = generateKeyBetween(prevKey, null);
 
             this.blocks = [...this.blocks, block]
-            this.emit({ type: "block_inserted", blockId: block.id, position });
+            this.emit({ type: "block_inserted", blockId: block.id, position, blockData: block.toObject() });
         }
     }
 

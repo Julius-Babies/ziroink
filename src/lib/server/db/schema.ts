@@ -115,5 +115,42 @@ export const page = sqliteTable(
         createdAt: integer("created_at", { mode: "timestamp_ms" })
             .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
             .notNull(),
+        updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+            .$onUpdate(() => /* @__PURE__ */ new Date())
+            .notNull(),
     }
 )
+
+export const block = sqliteTable("block", {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+        .notNull()
+        .references(() => page.id, { onDelete: "cascade" }),
+    type: text("type").notNull().default("text"),
+    variant: text("variant").notNull().default("paragraph"),
+    indentLevel: integer("indent_level").notNull().default(0),
+    listType: text("list_type"),
+    listStyleType: text("list_style_type"),
+    listStylePrefix: text("list_style_prefix"),
+    listStyleSuffix: text("list_style_suffix"),
+    listStyleVariant: text("list_style_variant"),
+    sortKey: text("sort_key").notNull(),
+    content: text("content", { mode: "json" }).$type<any[]>(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+        .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+        .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+        .$onUpdate(() => /* @__PURE__ */ new Date())
+        .notNull(),
+});
+
+export const pageRelations = relations(page, ({ many }) => ({
+    blocks: many(block),
+}));
+
+export const blockRelations = relations(block, ({ one }) => ({
+    page: one(page, {
+        fields: [block.pageId],
+        references: [page.id],
+    }),
+}));

@@ -67,7 +67,7 @@
                 value = String(index);
         }
 
-        return style.prefix + value + style.suffix;
+        return (style.prefix || "") + value + (style.suffix || "");
     }
 </script>
 {#if (block.listStyle)}

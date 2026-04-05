@@ -182,6 +182,24 @@ export class KeyboardHandler {
 
             if (block instanceof BaseTextBlock) {
                 const cursorOffset = this.page.selection!.start.offset;
+
+                // Title block special handling
+                if (this.page.blocks.length > 0 && this.page.blocks[0].id === block.id) {
+                    if (this.page.blocks.length > 1) {
+                        // Just move cursor to the next block
+                        const nextBlock = this.page.blocks[1];
+                        this.page.setSelection({blockId: nextBlock.id, offset: 0}, null);
+                        this.page.cursorXPosition = null;
+                        return;
+                    } else {
+                        // Create the first content paragraph block
+                        const newBlockId = this.page.createEmptyBlockAtEnd();
+                        this.page.setSelection({blockId: newBlockId, offset: 0}, null);
+                        this.page.cursorXPosition = null;
+                        return;
+                    }
+                }
+
                 const { newBlockId } = this.page.splitBlock(block.id, cursorOffset);
                 this.page.setSelection({blockId: newBlockId, offset: 0}, null);
                 this.page.cursorXPosition = null;

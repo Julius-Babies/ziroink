@@ -8,7 +8,7 @@ export type BlockInsertPosition =
 export type StyleType = "bold" | "italic" | "underline" | "strikethrough" | "code";
 
 export type PageEvent =
-    | { type: "block_inserted"; blockId: string; position: BlockInsertPosition }
+    | { type: "block_inserted"; blockId: string; position: BlockInsertPosition; blockData: any }
     | { type: "block_deleted"; blockId: string }
     | { type: "block_indent_changed"; blockId: string; oldIndent: number; newIndent: number }
     | { type: "block_list_changed"; blockId: string; oldListType: "unordered" | "ordered" | null; newListType: "unordered" | "ordered" | null; oldListStyle: ListStyle | null; newListStyle: ListStyle | null }

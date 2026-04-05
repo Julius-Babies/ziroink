@@ -120,6 +120,7 @@ export abstract class BaseInlineSymbol extends BaseInline {
             id: this.id,
             symbolType: this.symbol.type,
             emoji: this.symbol.type === "emoji" ? this.symbol.emoji : undefined,
+            sortKey: this.sortKey,
         }
     }
 }
