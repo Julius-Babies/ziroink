@@ -7,7 +7,9 @@
     import SelectionManager from "$lib/ziro/editor/SelectionManager.svelte";
     import {KeyboardHandler} from "$lib/ziro/editor/keyboard/KeyboardHandler";
     import {onMount} from "svelte";
+    import { authClient } from "$lib/client";
     import {Tabs, TabsList, TabsTrigger} from "$lib/components/ui/tabs";
+    import Login from "$lib/components/Login.svelte";
 
     function createSamplePage() {
         const p = new Page();
@@ -134,54 +136,60 @@
 
     onMount(() => {
         keyboardHandler = new KeyboardHandler(page);
+
     })
+    const session = authClient.useSession();
 
     let visibleDevTab: "document_tree" | "sync_queue" = $state("document_tree")
 </script>
 
 <svelte:window
-        oncompositionendcapture={e => keyboardHandler?.onCompositionEnd(e)}
-        onkeydowncapture={e => keyboardHandler?.onEvent(e)}
-        onbeforeinputcapture={e => keyboardHandler?.onBeforeInput(e)}
-        onpastecapture={e => keyboardHandler?.onPaste(e)}
+        oncompositionendcapture={e => { if ($session.data) keyboardHandler?.onCompositionEnd(e); }}
+        onkeydowncapture={e => { if ($session.data) keyboardHandler?.onEvent(e); }}
+        onbeforeinputcapture={e => { if ($session.data) keyboardHandler?.onBeforeInput(e); }}
+        onpastecapture={e => { if ($session.data) keyboardHandler?.onPaste(e); }}
 />
 
-<div class="w-full h-full flex flex-row">
-    <div
-            class="h-full flex-1 flex flex-col overflow-y-auto px-12 py-8"
-            role="textbox"
-            tabindex="-1"
-    >
-        {#each page.blocks as block (block.id)}
-            <BlockRenderer
-                    block={block}
-                    page={page}
-            />
-        {/each}
-        <BottomWhitespace page={page}/>
-    </div>
-    <div class="h-full flex relative flex-1 bg-gray-50 border-l border-gray-200">
-        <div class="absolute top-0 left-0 w-full h-16 p-4 bg-linear-to-b from-gray-50 to-gray-50/0 z-20">
-            <Tabs value={visibleDevTab} onValueChange={value => visibleDevTab = value}>
-                <TabsList>
-                    <TabsTrigger value="document_tree">Dokumentenbaum</TabsTrigger>
-                    <TabsTrigger value="sync_queue">Sync-Warteschlange</TabsTrigger>
-                </TabsList>
-            </Tabs>
+{#if $session.data}
+    <div class="w-full h-full flex flex-row">
+        <div
+                class="h-full flex-1 flex flex-col overflow-y-auto px-12 py-8"
+                role="textbox"
+                tabindex="-1"
+        >
+            {#each page.blocks as block (block.id)}
+                <BlockRenderer
+                        block={block}
+                        page={page}
+                />
+            {/each}
+            <BottomWhitespace page={page}/>
         </div>
+        <div class="h-full flex relative flex-1 bg-gray-50 border-l border-gray-200">
+            <div class="absolute top-0 left-0 w-full h-16 p-4 bg-linear-to-b from-gray-50 to-gray-50/0 z-20">
+                <Tabs value={visibleDevTab} onValueChange={value => visibleDevTab = value as "document_tree" | "sync_queue"}>
+                    <TabsList>
+                        <TabsTrigger value="document_tree">Dokumentenbaum</TabsTrigger>
+                        <TabsTrigger value="sync_queue">Sync-Warteschlange</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+            </div>
 
-        <div class="absolute top-0 left-0 flex flex-col w-full h-full p-4 overflow-y-auto pt-16 z-10">
-            {#if visibleDevTab === "document_tree"}
-                <JsonView json={{
+            <div class="absolute top-0 left-0 flex flex-col w-full h-full p-4 overflow-y-auto pt-16 z-10">
+                {#if visibleDevTab === "document_tree"}
+                    <JsonView json={{
                 cursorX: page.cursorXPosition,
                 selection: page.selection,
                 blocks: page.blocks.map(b => b.toObject())
             }}/>
-            {:else if visibleDevTab === "sync_queue"}
-                <JsonView json={page.eventQueue}/>
-            {/if}
+                {:else if visibleDevTab === "sync_queue"}
+                    <JsonView json={page.eventQueue}/>
+                {/if}
+            </div>
         </div>
     </div>
-</div>
 
-<SelectionManager page={page}/>
+    <SelectionManager page={page}/>
+{:else}
+    <Login />
+{/if}
