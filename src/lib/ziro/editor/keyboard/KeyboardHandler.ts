@@ -56,132 +56,7 @@ export class KeyboardHandler {
     }
 
     onPaste(event: ClipboardEvent) {
-        const clipboardData = event.clipboardData;
-        if (!clipboardData) return;
-
-        const plainText = clipboardData.getData("text/plain");
-        const htmlText = clipboardData.getData("text/html");
-
-        const segments = plainText ? [...new Intl.Segmenter().segment(plainText)] : [];
-        const hasEmoji = segments.some(s => isEmoji(s.segment));
-        const hasNewlines = plainText.includes("\n");
-        const hasMultipleLines = plainText.split("\n").filter((l: string) => l.trim()).length > 1;
-
-        console.log("Paste detected:", {
-            plainText,
-            htmlText,
-            hasHTML: !!htmlText,
-            hasEmoji,
-            hasNewlines,
-            hasMultipleLines,
-            segmentCount: segments.length,
-            segments: segments.map(s => ({segment: s.segment, isEmoji: isEmoji(s.segment)})),
-        });
-
-        if (!htmlText) {
-            const pasteHandler = new PasteHandler(this.page);
-            const {resultingBlocks} = pasteHandler.fromPlaintext(plainText);
-
-            if (resultingBlocks.length === 0) return;
-
-            this.deleteSelection();
-
-            const cursorBlockId = this.page.selection?.start.blockId;
-            if (!cursorBlockId) return;
-
-            const cursorBlock = this.page.findBlock(b => b.id === cursorBlockId);
-            if (!cursorBlock) return;
-
-            const cursorBlockIndex = this.page.blocks.indexOf(cursorBlock);
-            const isCursorBlockEmpty = cursorBlock instanceof TextBlock && cursorBlock.getContentLength() === 0;
-
-            if (resultingBlocks.length === 1) {
-                const pastedBlock = resultingBlocks[0];
-                if (cursorBlock instanceof TextBlock && pastedBlock instanceof TextBlock) {
-                    const cursorOffset = this.page.selection!.start.offset;
-                    const {inline: targetInline, offsetInInline} = cursorBlock.findInlineAtOffset(cursorOffset);
-
-                    if (targetInline instanceof InlineText) {
-                        const textBefore = targetInline.content.substring(0, offsetInInline);
-                        const textAfter = targetInline.content.substring(offsetInInline);
-
-                        const newInlines: Inline[] = [];
-                        if (textBefore.length > 0) {
-                            const beforeInline = new InlineText(crypto.randomUUID());
-                            beforeInline.content = textBefore;
-                            Object.assign(beforeInline, targetInline);
-                            newInlines.push(beforeInline);
-                        }
-
-                        newInlines.push(...pastedBlock.inlines);
-
-                        if (textAfter.length > 0) {
-                            const afterInline = new InlineText(crypto.randomUUID());
-                            afterInline.content = textAfter;
-                            Object.assign(afterInline, targetInline);
-                            newInlines.push(afterInline);
-                        }
-
-                        const targetIndex = cursorBlock.inlines.indexOf(targetInline);
-                        cursorBlock.inlines = [
-                            ...cursorBlock.inlines.slice(0, targetIndex),
-                            ...newInlines,
-                            ...cursorBlock.inlines.slice(targetIndex + 1)
-                        ];
-
-                        cursorBlock.mergeAdjacentInlines();
-
-                        const newOffset = cursorOffset + pastedBlock.getContentLength();
-                        this.page.setSelection({blockId: cursorBlockId, offset: newOffset}, null);
-                    } else {
-                        const targetIndex = cursorBlock.inlines.indexOf(targetInline);
-                        cursorBlock.inlines = [
-                            ...cursorBlock.inlines.slice(0, targetIndex + 1),
-                            ...pastedBlock.inlines,
-                            ...cursorBlock.inlines.slice(targetIndex + 1)
-                        ];
-
-                        cursorBlock.mergeAdjacentInlines();
-
-                        const newOffset = cursorOffset + pastedBlock.getContentLength();
-                        this.page.setSelection({blockId: cursorBlockId, offset: newOffset}, null);
-                    }
-                }
-            } else if (isCursorBlockEmpty) {
-                this.page.blocks = this.page.blocks.filter(b => b.id !== cursorBlockId);
-                const newCursorBlockIndex = cursorBlockIndex;
-
-                for (let i = 0; i < resultingBlocks.length; i++) {
-                    const block = resultingBlocks[i];
-                    const insertAfterId = i === 0
-                        ? (newCursorBlockIndex > 0 ? this.page.blocks[newCursorBlockIndex - 1].id : null)
-                        : this.page.blocks[newCursorBlockIndex + i - 1].id;
-
-                    if (insertAfterId) {
-                        this.page.insertBlock(block, {type: "after_block", afterId: insertAfterId});
-                    } else {
-                        this.page.blocks = [block, ...this.page.blocks];
-                    }
-                }
-
-                const firstNewBlock = resultingBlocks[0];
-                this.page.setSelection({blockId: firstNewBlock.id, offset: firstNewBlock.getContentLength()}, null);
-            } else {
-                for (let i = 0; i < resultingBlocks.length; i++) {
-                    const block = resultingBlocks[i];
-                    this.page.insertBlock(block, {
-                        type: "after_block",
-                        afterId: i === 0 ? cursorBlockId : this.page.blocks[cursorBlockIndex + i].id
-                    });
-                }
-
-                const firstNewBlock = resultingBlocks[0];
-                this.page.setSelection({blockId: firstNewBlock.id, offset: firstNewBlock.getContentLength()}, null);
-            }
-
-            this.page.cursorXPosition = null;
-        }
-
+        alert("Pasting is not yet supported!");
         event.preventDefault();
     }
 
@@ -305,56 +180,12 @@ export class KeyboardHandler {
                 }
             }
 
-            const newBlock = new TextBlock(crypto.randomUUID())
-            newBlock.indentLevel = block.indentLevel;
-
             if (block instanceof TextBlock) {
-                if (!event.ctrlKey) {
-                    let listContext: TextBlock | null = null;
-                    const currentIndex = this.page.blocks.indexOf(block);
-                    for (let i = currentIndex; i >= 0; i--) {
-                        const b = this.page.blocks[i];
-                        if (b instanceof TextBlock) {
-                            if (b.indentLevel < block.indentLevel) {
-                                break;
-                            }
-                            if (b.indentLevel === block.indentLevel && b.listType) {
-                                listContext = b;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (listContext) {
-                        newBlock.listType = listContext.listType;
-                        newBlock.listStyle = listContext.listStyle;
-                    }
-                }
-
-                const inlineAtCursor = block.findInlineAtOffset(this.page.selection!.start.offset)
-                const index = block.inlines.indexOf(inlineAtCursor.inline);
-                if (inlineAtCursor.inline instanceof InlineText) {
-                    const textBeforeCursor = inlineAtCursor.inline.content.slice(0, inlineAtCursor.offsetInInline);
-                    const textAfterCursor = inlineAtCursor.inline.content.slice(inlineAtCursor.offsetInInline);
-                    if (textAfterCursor !== "") {
-                        const newInline = new InlineText(crypto.randomUUID());
-                        newInline.content = textAfterCursor;
-                        inlineAtCursor.inline.content = textBeforeCursor;
-                        newBlock.inlines = [...newBlock.inlines, newInline];
-                    }
-
-                    newBlock.inlines = [...newBlock.inlines, ...block.inlines.slice(index + 1, block.inlines.length)];
-                    block.inlines = block.inlines.slice(0, index + 1);
-
-                    if (newBlock.inlines.length === 0) {
-                        newBlock.inlines = [new InlineText(crypto.randomUUID())];
-                    }
-
-                    this.page.insertBlock(newBlock, {type: "after_block", afterId: block.id})
-                    this.page.setSelection({blockId: newBlock.id, offset: 0}, null)
-                    this.page.cursorXPosition = null;
-                    return;
-                }
+                const cursorOffset = this.page.selection!.start.offset;
+                const { newBlockId } = this.page.splitBlock(block.id, cursorOffset);
+                this.page.setSelection({blockId: newBlockId, offset: 0}, null);
+                this.page.cursorXPosition = null;
+                return;
             } else {
                 throw new Error("Non-text blocks are not yet supported")
             }
@@ -395,10 +226,7 @@ export class KeyboardHandler {
 
                     const previousBlock = this.page.blocks[index - 1];
                     if (previousBlock instanceof TextBlock) {
-                        const prevContentLength = previousBlock.getContentLength();
-                        previousBlock.inlines = [...previousBlock.inlines, ...block.inlines];
-                        previousBlock.mergeAdjacentInlines();
-                        this.page.blocks = this.page.blocks.filter(b => b.id !== block.id);
+                        const prevContentLength = this.page.mergeBlocks(previousBlock.id, block.id);
                         this.page.setSelection({blockId: previousBlock.id, offset: prevContentLength}, null);
                     } else {
                         this.page.blocks = this.page.blocks.filter(b => b.id !== block.id);
@@ -574,7 +402,6 @@ export class KeyboardHandler {
             const textBefore = block.getVisualText().slice(0, cursorOffset);
             const isNextCharStar = block.getVisualText()[cursorOffset] === "*";
 
-            // ** bold
             if (textBefore.endsWith("*") && !isNextCharStar) {
                 const searchIn = textBefore.slice(0, -1);
                 const idx = searchIn.lastIndexOf("**");
@@ -604,7 +431,6 @@ export class KeyboardHandler {
                 }
             }
 
-            // * italic only if not double-star
             const singleIdx = (() => {
                 for (let i = textBefore.length - 1; i >= 0; i--) {
                     if (textBefore[i] === "*") {

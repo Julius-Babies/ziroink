@@ -79,7 +79,7 @@ export class TextBlock implements Block {
         }, "")
     }
 
-    mergeAdjacentInlines() {
+    _mergeAdjacentInlines() {
         const merged: Inline[] = [];
         for (const inline of this.inlines) {
             const last = merged.length > 0 ? merged[merged.length - 1] : null;
