@@ -1,6 +1,6 @@
 <script lang="ts">
     import type {Page, SelectionPosition} from "$lib/ziro/Page.svelte";
-    import {InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
+    import {InlineSymbol, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
 
     let {
         page,
@@ -247,43 +247,54 @@
 
         let { inline, offsetInInline } = block.findInlineAtOffset(pos.offset);
         
-        // If we landed on a non-text inline, shift to an adjacent text inline for caret placement
-        if (!(inline instanceof InlineText)) {
-            const inlineIndex = block.inlines.findIndex(i => i.id === inline.id);
-            if (offsetInInline === 0 && inlineIndex > 0) {
-                const prev = block.inlines[inlineIndex - 1];
-                if (prev instanceof InlineText) {
-                    inline = prev;
-                    offsetInInline = prev.content.length;
+        if (inline instanceof InlineText) {
+            const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
+            if (!inlineEditable) return null;
+
+            const anchorNode = inlineEditable.childNodes.item(0);
+            if (!anchorNode) return null;
+
+            return { node: anchorNode, offset: offsetInInline };
+        } else if (inline instanceof InlineSymbol) {
+            const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
+            if (!inlineEditable) return null;
+            return { node: inlineEditable, offset: offsetInInline };
+        }
+
+        const inlineIndex = block.inlines.findIndex(i => i.id === inline.id);
+        if (offsetInInline === 0 && inlineIndex > 0) {
+            const prev = block.inlines[inlineIndex - 1];
+            if (prev instanceof InlineText) {
+                const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${prev.id}"]`) as HTMLElement;
+                if (inlineEditable && inlineEditable.childNodes.item(0)) {
+                    return { node: inlineEditable.childNodes.item(0), offset: prev.content.length };
                 }
-            } else if (inlineIndex < block.inlines.length - 1) {
-                const next = block.inlines[inlineIndex + 1];
-                if (next instanceof InlineText) {
-                    inline = next;
-                    offsetInInline = 0;
+            } else if (prev instanceof InlineSymbol) {
+                const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${prev.id}"]`) as HTMLElement;
+                if (inlineEditable) return { node: inlineEditable, offset: 1 };
+            }
+        }
+        if (inlineIndex < block.inlines.length - 1) {
+            const next = block.inlines[inlineIndex + 1];
+            if (next instanceof InlineText) {
+                const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${next.id}"]`) as HTMLElement;
+                if (inlineEditable && inlineEditable.childNodes.item(0)) {
+                    return { node: inlineEditable.childNodes.item(0), offset: 0 };
                 }
-            } else {
-                return null;
+            } else if (next instanceof InlineSymbol) {
+                const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${next.id}"]`) as HTMLElement;
+                if (inlineEditable) return { node: inlineEditable, offset: 0 };
             }
         }
 
-        // It might still not be an InlineText if there are multiple consecutive symbols
-        if (!(inline instanceof InlineText)) return null;
-
-        const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
-        if (!inlineEditable) return null;
-
-        const anchorNode = inlineEditable.childNodes.item(0);
-        if (!anchorNode) return null;
-
-        return { node: anchorNode, offset: offsetInInline };
+        return null;
     }
 
     let selectionRects: Rect[] = $state([]);
 
     type Rect = { top: number, bottom: number, left: number, right: number, width: number, height: number };
 
-    function getNormalizedSelectionRects(range: Range): Rect[] {
+    function getNormalizedSelectionRects(range: Range, startPos: SelectionPosition, endPos: SelectionPosition): Rect[] {
         const textRects: Rect[] = [];
 
         const rootNode = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
@@ -291,7 +302,6 @@
             : range.commonAncestorContainer;
         if (!rootNode) return [];
 
-        // Walk only the text nodes within the range and collect their rects
         const treeWalker = document.createTreeWalker(
             rootNode,
             NodeFilter.SHOW_TEXT,
@@ -305,7 +315,7 @@
             }
         );
 
-        const nodes: { node: Text, start: number, end: number }[] = [];
+        const textNodes: { node: Text, start: number, end: number }[] = [];
         let textNode: Node | null;
         while (textNode = treeWalker.nextNode()) {
             const text = textNode as Text;
@@ -317,10 +327,10 @@
             const actualStart = (text === range.startContainer) ? range.startOffset : 0;
             const actualEnd = (text === range.endContainer) ? range.endOffset : text.length;
 
-            nodes.push({ node: text, start: Math.min(actualStart, actualEnd), end: Math.max(actualStart, actualEnd) });
+            textNodes.push({ node: text, start: Math.min(actualStart, actualEnd), end: Math.max(actualStart, actualEnd) });
         }
 
-        for (const { node, start, end } of nodes) {
+        for (const { node, start, end } of textNodes) {
             if (start >= end) continue;
             const charRange = document.createRange();
             charRange.setStart(node, start);
@@ -332,6 +342,54 @@
                         width: rect.width, height: rect.height
                     });
                 }
+            }
+        }
+
+        const allSymbolEls = document.querySelectorAll('[data-ziro-editor-editable-for-block-inline-id]');
+        const symbolRects: { rect: Rect, top: number, bottom: number }[] = [];
+        for (const el of Array.from(allSymbolEls)) {
+            const blockId = el.getAttribute('data-ziro-editor-editable-for-block-id')!;
+            const inlineId = el.getAttribute('data-ziro-editor-editable-for-block-inline-id')!;
+            const block = page.findBlock(b => b.id === blockId);
+            if (!(block instanceof TextBlock)) continue;
+            const inline = block.inlines.find(i => i.id === inlineId);
+            if (!(inline instanceof InlineSymbol)) continue;
+
+            const symbolOffset = block.findOffsetByInline(inlineId);
+            const symbolStart = { blockId, offset: symbolOffset };
+            const symbolEnd = { blockId, offset: symbolOffset + 1 };
+
+            const startsBeforeEnd = comparePositions(symbolStart, endPos) < 0;
+            const endsAfterStart = comparePositions(symbolEnd, startPos) > 0;
+            if (startsBeforeEnd && endsAfterStart) {
+                const rect = el.getBoundingClientRect();
+                if (rect.width > 0 && rect.height > 0) {
+                    symbolRects.push({ rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width, height: rect.height }, top: rect.top, bottom: rect.bottom });
+                }
+            }
+        }
+
+        if (textRects.length > 0) {
+            const lineHeight = textRects.reduce((min, r) => Math.min(min, r.height), Infinity);
+            const minTop = textRects.reduce((min, r) => Math.min(min, r.top), Infinity);
+
+            for (const { rect } of symbolRects) {
+                const closestTextRect = textRects.reduce((best, r) =>
+                    Math.abs(r.left - rect.left) < Math.abs(best.left - rect.left) ? r : best
+                );
+                const expandedRect: Rect = {
+                    top: closestTextRect.top,
+                    bottom: closestTextRect.bottom,
+                    left: rect.left,
+                    right: rect.right,
+                    width: rect.width,
+                    height: closestTextRect.bottom - closestTextRect.top,
+                };
+                textRects.push(expandedRect);
+            }
+        } else {
+            for (const { rect } of symbolRects) {
+                textRects.push(rect);
             }
         }
 
@@ -348,7 +406,7 @@
         for (let i = 1; i < sorted.length; i++) {
             const next = sorted[i];
             const isSameLine = Math.abs(current.top - next.top) < 2 && Math.abs(current.bottom - next.bottom) < 2;
-            const isAdjacent = next.left <= current.right + 1;
+            const isAdjacent = next.left <= current.right + 4;
 
             if (isSameLine && isAdjacent) {
                 current.right = Math.max(current.right, next.right);
@@ -364,6 +422,23 @@
         merged.push(current);
 
         return merged;
+    }
+
+    function comparePositions(a: SelectionPosition, b: SelectionPosition): number {
+        if (a.blockId !== b.blockId) {
+            const aIdx = page.blocks.findIndex(bl => bl.id === a.blockId);
+            const bIdx = page.blocks.findIndex(bl => bl.id === b.blockId);
+            return aIdx - bIdx;
+        }
+        return a.offset - b.offset;
+    }
+
+    function isPositionInRange(pos: SelectionPosition, start: SelectionPosition, end: SelectionPosition): boolean {
+        return comparePositions(pos, start) >= 0 && comparePositions(pos, end) <= 0;
+    }
+
+    function isRangeContained(rangeStart: SelectionPosition, rangeEnd: SelectionPosition, containerStart: SelectionPosition, containerEnd: SelectionPosition): boolean {
+        return comparePositions(rangeStart, containerStart) >= 0 && comparePositions(rangeEnd, containerEnd) <= 0;
     }
 
     $effect(() => {
@@ -385,12 +460,11 @@
             const endDOM = getDomNodeAndOffsetForPosition(page.selection.end);
             if (!endDOM) return;
             
-            // Allow reverse DOM selection using setBaseAndExtent
             selection.setBaseAndExtent(startDOM.node, startDOM.offset, endDOM.node, endDOM.offset);
 
             if (selection.rangeCount > 0) {
                 const range = selection.getRangeAt(0);
-                selectionRects = getNormalizedSelectionRects(range);
+                selectionRects = getNormalizedSelectionRects(range, page.selection.start, page.selection.end);
             } else {
                 selectionRects = [];
             }
@@ -402,7 +476,7 @@
             if (!page.selection || !page.selection.end) return;
             const selection = window.getSelection();
             if (selection && selection.rangeCount > 0) {
-                selectionRects = getNormalizedSelectionRects(selection.getRangeAt(0));
+                selectionRects = getNormalizedSelectionRects(selection.getRangeAt(0), page.selection.start, page.selection.end);
             }
         };
 

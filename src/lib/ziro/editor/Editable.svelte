@@ -11,6 +11,7 @@
         italic = false,
         underline = false,
         strikethrough = false,
+        code = false,
     }: {
         content: string,
         blockId: string;
@@ -21,12 +22,20 @@
         italic?: boolean,
         underline?: boolean,
         strikethrough?: boolean,
+        code?: boolean,
     } = $props();
+
+    let classes = $derived([
+        "inline focus:outline-0 whitespace-pre-wrap",
+        bold ? "font-bold" : "",
+        italic ? "italic" : "",
+        underline && strikethrough ? "underline line-through" : underline ? "underline" : strikethrough ? "line-through" : "",
+        code ? "rounded bg-gray-100 px-1 py-0.5 font-mono text-sm text-gray-800" : "",
+    ].filter(Boolean).join(" "));
 </script>
 
 <span
-        class="inline focus:outline-0"
-        style="white-space: pre-wrap; font-weight: {bold ? 'bold' : 'inherit'}; font-style: {italic ? 'italic' : 'inherit'}; text-decoration: {underline && strikethrough ? 'underline line-through' : underline ? 'underline' : strikethrough ? 'line-through' : 'inherit'};"
+        class={classes}
         data-ziro-editor-editable
         data-ziro-editor-editable-type={type}
         data-ziro-editor-editable-for-block-id={blockId}

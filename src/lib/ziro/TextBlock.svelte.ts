@@ -129,6 +129,7 @@ export class InlineText implements Inline {
     italic: boolean = $state(false);
     underline: boolean = $state(false);
     strikethrough: boolean = $state(false);
+    code: boolean = $state(false);
 
     constructor(id: string) {
         this.id = id;
@@ -143,6 +144,7 @@ export class InlineText implements Inline {
             italic: this.italic,
             underline: this.underline,
             strikethrough: this.strikethrough,
+            code: this.code,
         }
     }
 
@@ -154,6 +156,7 @@ export class InlineText implements Inline {
         return this.bold === other.bold &&
             this.italic === other.italic &&
             this.underline === other.underline &&
-            this.strikethrough === other.strikethrough;
+            this.strikethrough === other.strikethrough &&
+            this.code === other.code;
     }
 }

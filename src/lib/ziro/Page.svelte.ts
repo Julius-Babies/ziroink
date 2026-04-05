@@ -136,7 +136,7 @@ export class Page {
         }
     }
 
-    private applyStyleToBlockRange(block: TextBlock, startOffset: number, endOffset: number, style: "bold" | "italic" | "underline" | "strikethrough", value: boolean) {
+    private applyStyleToBlockRange(block: TextBlock, startOffset: number, endOffset: number, style: "bold" | "italic" | "underline" | "strikethrough" | "code", value: boolean) {
         const inlineStart = block.findInlineAtOffset(startOffset);
         const inlineEnd = block.findInlineAtOffset(endOffset);
 
@@ -234,6 +234,7 @@ export class Page {
         to.italic = from.italic;
         to.underline = from.underline;
         to.strikethrough = from.strikethrough;
+        to.code = from.code;
     }
 
     insertInlineAtOffset(blockId: string, offset: number, inline: Inline) {

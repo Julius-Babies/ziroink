@@ -1,3 +1,4 @@
+@import url('https://tetunori.github.io/fluent-emoji-webfont/dist/FluentEmojiColor.css');
 @import 'tailwindcss';
 @import "tw-animate-css";
 @import "shadcn-svelte/tailwind.css";
@@ -137,4 +138,8 @@
 
 body {
     font-family: "Inter Variable", sans-serif;
+}
+
+.emoji {
+    font-family: 'Fluent Emoji Color', sans-serif;
 }
