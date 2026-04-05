@@ -267,25 +267,61 @@
     type Rect = { top: number, bottom: number, left: number, right: number, width: number, height: number };
 
     function getNormalizedSelectionRects(range: Range): Rect[] {
-        const rawRects = Array.from(range.getClientRects()).filter(r => r.width > 0 && r.height > 0);
-        
-        // Filter out container rects that strictly enclose other rects (like full block divs)
-        const filtered = rawRects.filter(r1 => {
-            return !rawRects.some(r2 => 
-                r1 !== r2 && 
-                r2.left >= r1.left && 
-                r2.right <= r1.right && 
-                r2.top >= r1.top && 
-                r2.bottom <= r1.bottom &&
-                (r1.width > r2.width || r1.height > r2.height)
-            );
-        });
+        const textRects: Rect[] = [];
 
-        if (filtered.length === 0) return [];
+        // Walk only the text nodes within the range and collect their rects
+        const treeWalker = document.createTreeWalker(
+            range.commonAncestorContainer,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode(node) {
+                    if (!node.parentElement?.hasAttribute("data-ziro-editor-editable")) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            }
+        );
 
-        const sorted = filtered.map(r => ({
-            top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height
-        })).sort((a, b) => {
+        const nodes: { node: Text, start: number, end: number }[] = [];
+        let textNode: Node | null;
+        while (textNode = treeWalker.nextNode()) {
+            const text = textNode as Text;
+            const nodeRange = document.createRange();
+            nodeRange.selectNodeContents(text);
+            if (range.compareBoundaryPoints(Range.END_TO_START, nodeRange) >= 0) continue;
+            if (range.compareBoundaryPoints(Range.START_TO_END, nodeRange) <= 0) continue;
+
+            const startOffset = range.compareBoundaryPoints(Range.START_TO_END, nodeRange) < 0
+                ? Math.max(0, range.startOffset) : 0;
+            const endOffset = range.compareBoundaryPoints(Range.END_TO_START, nodeRange) < 0
+                ? Math.min(text.length, range.endOffset) : text.length;
+
+            // Recalculate proper offsets for this specific text node
+            const actualStart = (text === range.startContainer) ? range.startOffset : 0;
+            const actualEnd = (text === range.endContainer) ? range.endOffset : text.length;
+
+            nodes.push({ node: text, start: Math.min(actualStart, actualEnd), end: Math.max(actualStart, actualEnd) });
+        }
+
+        for (const { node, start, end } of nodes) {
+            if (start >= end) continue;
+            const charRange = document.createRange();
+            charRange.setStart(node, start);
+            charRange.setEnd(node, end);
+            for (const rect of charRange.getClientRects()) {
+                if (rect.width > 0 && rect.height > 0) {
+                    textRects.push({
+                        top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right,
+                        width: rect.width, height: rect.height
+                    });
+                }
+            }
+        }
+
+        if (textRects.length === 0) return [];
+
+        const sorted = textRects.sort((a, b) => {
             if (Math.abs(a.top - b.top) > 2) return a.top - b.top;
             return a.left - b.left;
         });
@@ -296,7 +332,7 @@
         for (let i = 1; i < sorted.length; i++) {
             const next = sorted[i];
             const isSameLine = Math.abs(current.top - next.top) < 2 && Math.abs(current.bottom - next.bottom) < 2;
-            const isAdjacent = next.left <= current.right + 1; // 1px tolerance for rounding errors
+            const isAdjacent = next.left <= current.right + 1;
 
             if (isSameLine && isAdjacent) {
                 current.right = Math.max(current.right, next.right);

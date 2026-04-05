@@ -69,7 +69,7 @@
     }
 </script>
 {#if block.listStyle}
-    <div class="w-8 flex content-center justify-center">
+    <div class="w-8 flex content-center justify-center select-none">
         {#if block.listStyle.type === "bullet"}
             &bullet;
         {:else if block.listStyle.type === "dash"}
