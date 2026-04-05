@@ -85,7 +85,7 @@ export class Page {
     }
 
     toggleStyle(
-        style: "bold" | "italic" | "underline" | "strikethrough",
+        style: "bold" | "italic" | "underline" | "strikethrough" | "code",
         config: {
             forceTo: boolean | null,
             onSelection: NonCollapsedSelection

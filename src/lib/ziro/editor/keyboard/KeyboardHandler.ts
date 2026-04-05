@@ -1,9 +1,8 @@
-import {isNonCollapsedSelection, type NonCollapsedSelection, type Page} from "$lib/ziro/Page.svelte.js";
+import {isNonCollapsedSelection, type Page} from "$lib/ziro/Page.svelte.js";
 import {type Inline, InlineSymbol, InlineText, type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte.js";
 import {buildOffsetPositions, findClosestLine, handleVerticalNavigation} from "$lib/ziro/VerticalNavigation";
 import {PasteHandler} from "$lib/ziro/PasteHandler";
 import {isArrowKey, isInsertLineBreak, isNewBlock, isToggleStyle} from "$lib/ziro/editor/keyboard/getEventAction";
-import {tick} from "svelte";
 
 const WORD_SEPARATORS = [" ", "|"];
 
@@ -37,12 +36,18 @@ export class KeyboardHandler {
 
                 for (const segment of segments) {
                     if (isEmoji(segment.segment)) {
-                        const emojiSymbol = new InlineSymbol(crypto.randomUUID(), {type: "emoji", emoji: segment.segment});
+                        const emojiSymbol = new InlineSymbol(crypto.randomUUID(), {
+                            type: "emoji",
+                            emoji: segment.segment
+                        });
                         this.page.insertInlineAtOffset(blockIdAtCursor, cursorOffset, emojiSymbol);
                         this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset + 1}, null);
                     } else {
-                        this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, segment.segment);
-                        this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset + segment.segment.length}, null);
+                        this.page.insertText({blockId: blockIdAtCursor, offset: cursorOffset}, segment.segment);
+                        this.page.setSelection({
+                            blockId: blockIdAtCursor,
+                            offset: cursorOffset + segment.segment.length
+                        }, null);
                     }
                 }
                 this.page.cursorXPosition = null;
@@ -70,23 +75,23 @@ export class KeyboardHandler {
             hasNewlines,
             hasMultipleLines,
             segmentCount: segments.length,
-            segments: segments.map(s => ({ segment: s.segment, isEmoji: isEmoji(s.segment) })),
+            segments: segments.map(s => ({segment: s.segment, isEmoji: isEmoji(s.segment)})),
         });
 
         if (!htmlText) {
             const pasteHandler = new PasteHandler(this.page);
-            const { resultingBlocks } = pasteHandler.fromPlaintext(plainText);
-            
+            const {resultingBlocks} = pasteHandler.fromPlaintext(plainText);
+
             if (resultingBlocks.length === 0) return;
-            
+
             this.deleteSelection();
-            
+
             const cursorBlockId = this.page.selection?.start.blockId;
             if (!cursorBlockId) return;
-            
+
             const cursorBlock = this.page.findBlock(b => b.id === cursorBlockId);
             if (!cursorBlock) return;
-            
+
             const cursorBlockIndex = this.page.blocks.indexOf(cursorBlock);
             const isCursorBlockEmpty = cursorBlock instanceof TextBlock && cursorBlock.getContentLength() === 0;
 
@@ -94,12 +99,12 @@ export class KeyboardHandler {
                 const pastedBlock = resultingBlocks[0];
                 if (cursorBlock instanceof TextBlock && pastedBlock instanceof TextBlock) {
                     const cursorOffset = this.page.selection!.start.offset;
-                    const { inline: targetInline, offsetInInline } = cursorBlock.findInlineAtOffset(cursorOffset);
-                    
+                    const {inline: targetInline, offsetInInline} = cursorBlock.findInlineAtOffset(cursorOffset);
+
                     if (targetInline instanceof InlineText) {
                         const textBefore = targetInline.content.substring(0, offsetInInline);
                         const textAfter = targetInline.content.substring(offsetInInline);
-                        
+
                         const newInlines: Inline[] = [];
                         if (textBefore.length > 0) {
                             const beforeInline = new InlineText(crypto.randomUUID());
@@ -107,27 +112,27 @@ export class KeyboardHandler {
                             Object.assign(beforeInline, targetInline);
                             newInlines.push(beforeInline);
                         }
-                        
+
                         newInlines.push(...pastedBlock.inlines);
-                        
+
                         if (textAfter.length > 0) {
                             const afterInline = new InlineText(crypto.randomUUID());
                             afterInline.content = textAfter;
                             Object.assign(afterInline, targetInline);
                             newInlines.push(afterInline);
                         }
-                        
+
                         const targetIndex = cursorBlock.inlines.indexOf(targetInline);
                         cursorBlock.inlines = [
                             ...cursorBlock.inlines.slice(0, targetIndex),
                             ...newInlines,
                             ...cursorBlock.inlines.slice(targetIndex + 1)
                         ];
-                        
+
                         cursorBlock.mergeAdjacentInlines();
-                        
+
                         const newOffset = cursorOffset + pastedBlock.getContentLength();
-                        this.page.setSelection({ blockId: cursorBlockId, offset: newOffset }, null);
+                        this.page.setSelection({blockId: cursorBlockId, offset: newOffset}, null);
                     } else {
                         const targetIndex = cursorBlock.inlines.indexOf(targetInline);
                         cursorBlock.inlines = [
@@ -135,42 +140,45 @@ export class KeyboardHandler {
                             ...pastedBlock.inlines,
                             ...cursorBlock.inlines.slice(targetIndex + 1)
                         ];
-                        
+
                         cursorBlock.mergeAdjacentInlines();
-                        
+
                         const newOffset = cursorOffset + pastedBlock.getContentLength();
-                        this.page.setSelection({ blockId: cursorBlockId, offset: newOffset }, null);
+                        this.page.setSelection({blockId: cursorBlockId, offset: newOffset}, null);
                     }
                 }
             } else if (isCursorBlockEmpty) {
                 this.page.blocks = this.page.blocks.filter(b => b.id !== cursorBlockId);
                 const newCursorBlockIndex = cursorBlockIndex;
-                
+
                 for (let i = 0; i < resultingBlocks.length; i++) {
                     const block = resultingBlocks[i];
-                    const insertAfterId = i === 0 
+                    const insertAfterId = i === 0
                         ? (newCursorBlockIndex > 0 ? this.page.blocks[newCursorBlockIndex - 1].id : null)
                         : this.page.blocks[newCursorBlockIndex + i - 1].id;
-                    
+
                     if (insertAfterId) {
-                        this.page.insertBlock(block, { type: "after_block", afterId: insertAfterId });
+                        this.page.insertBlock(block, {type: "after_block", afterId: insertAfterId});
                     } else {
                         this.page.blocks = [block, ...this.page.blocks];
                     }
                 }
-                
+
                 const firstNewBlock = resultingBlocks[0];
-                this.page.setSelection({ blockId: firstNewBlock.id, offset: firstNewBlock.getContentLength() }, null);
+                this.page.setSelection({blockId: firstNewBlock.id, offset: firstNewBlock.getContentLength()}, null);
             } else {
                 for (let i = 0; i < resultingBlocks.length; i++) {
                     const block = resultingBlocks[i];
-                    this.page.insertBlock(block, { type: "after_block", afterId: i === 0 ? cursorBlockId : this.page.blocks[cursorBlockIndex + i].id });
+                    this.page.insertBlock(block, {
+                        type: "after_block",
+                        afterId: i === 0 ? cursorBlockId : this.page.blocks[cursorBlockIndex + i].id
+                    });
                 }
-                
+
                 const firstNewBlock = resultingBlocks[0];
-                this.page.setSelection({ blockId: firstNewBlock.id, offset: firstNewBlock.getContentLength() }, null);
+                this.page.setSelection({blockId: firstNewBlock.id, offset: firstNewBlock.getContentLength()}, null);
             }
-            
+
             this.page.cursorXPosition = null;
         }
 
@@ -190,9 +198,9 @@ export class KeyboardHandler {
     private updateSelection(blockId: string, offset: number, isShift: boolean) {
         if (isShift) {
             const start = this.page.selection!.start;
-            this.page.setSelection(start, { blockId, offset });
+            this.page.setSelection(start, {blockId, offset});
         } else {
-            this.page.setSelection({ blockId, offset }, null);
+            this.page.setSelection({blockId, offset}, null);
         }
     }
 
@@ -226,19 +234,19 @@ export class KeyboardHandler {
             if (!isNonCollapsedSelection(this.page.selection)) return;
             if (key === "b") {
                 event.preventDefault();
-                this.page.toggleStyle("bold", { forceTo: null, onSelection: this.page.selection });
+                this.page.toggleStyle("bold", {forceTo: null, onSelection: this.page.selection});
                 return;
             } else if (key === "i") {
                 event.preventDefault();
-                this.page.toggleStyle("italic", { forceTo: null, onSelection: this.page.selection });
+                this.page.toggleStyle("italic", {forceTo: null, onSelection: this.page.selection});
                 return;
             } else if (key === "u") {
                 event.preventDefault();
-                this.page.toggleStyle("underline", { forceTo: null, onSelection: this.page.selection });
+                this.page.toggleStyle("underline", {forceTo: null, onSelection: this.page.selection});
                 return;
             } else if (key === "j") {
                 event.preventDefault();
-                this.page.toggleStyle("strikethrough", { forceTo: null, onSelection: this.page.selection });
+                this.page.toggleStyle("strikethrough", {forceTo: null, onSelection: this.page.selection});
                 return;
             }
         }
@@ -270,8 +278,8 @@ export class KeyboardHandler {
             this.deleteSelection();
 
             const cursorOffset = this.page.selection!.start.offset;
-            this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, "\n");
-            this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset + 1 }, null);
+            this.page.insertText({blockId: blockIdAtCursor, offset: cursorOffset}, "\n");
+            this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset + 1}, null);
             this.page.cursorXPosition = null;
             return;
         }
@@ -391,11 +399,14 @@ export class KeyboardHandler {
                         previousBlock.inlines = [...previousBlock.inlines, ...block.inlines];
                         previousBlock.mergeAdjacentInlines();
                         this.page.blocks = this.page.blocks.filter(b => b.id !== block.id);
-                        this.page.setSelection({ blockId: previousBlock.id, offset: prevContentLength }, null);
+                        this.page.setSelection({blockId: previousBlock.id, offset: prevContentLength}, null);
                     } else {
                         this.page.blocks = this.page.blocks.filter(b => b.id !== block.id);
                         if (previousBlock instanceof TextBlock) {
-                            this.page.setSelection({ blockId: previousBlock.id, offset: previousBlock.getContentLength() }, null);
+                            this.page.setSelection({
+                                blockId: previousBlock.id,
+                                offset: previousBlock.getContentLength()
+                            }, null);
                         }
                     }
                     return;
@@ -410,10 +421,10 @@ export class KeyboardHandler {
                     deleteStartOffset = cursorOffset - 1;
                 }
 
-                const start = { blockId: blockIdAtCursor, offset: deleteStartOffset };
-                const end = { blockId: blockIdAtCursor, offset: cursorOffset };
+                const start = {blockId: blockIdAtCursor, offset: deleteStartOffset};
+                const end = {blockId: blockIdAtCursor, offset: cursorOffset};
                 this.page.deleteContent(start, end);
-                this.page.setSelection({ blockId: blockIdAtCursor, offset: deleteStartOffset }, null);
+                this.page.setSelection({blockId: blockIdAtCursor, offset: deleteStartOffset}, null);
                 this.page.cursorXPosition = null;
             } else {
                 throw new Error("Non-text blocks are not yet supported")
@@ -513,100 +524,34 @@ export class KeyboardHandler {
             const textBeforeCursor = block.getVisualText().slice(0, cursorPos.offset);
             if (textBeforeCursor.endsWith("(/")) {
                 event.preventDefault();
-                this.page.deleteContent({ blockId: blockIdAtCursor, offset: cursorPos.offset - 2 }, { blockId: blockIdAtCursor, offset: cursorPos.offset });
+                this.page.deleteContent({
+                    blockId: blockIdAtCursor,
+                    offset: cursorPos.offset - 2
+                }, {blockId: blockIdAtCursor, offset: cursorPos.offset});
                 const newCharInline = new InlineSymbol(crypto.randomUUID(), {type: "check"});
                 this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
                 this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
                 return;
             } else if (textBeforeCursor.endsWith("(x")) {
                 event.preventDefault();
-                this.page.deleteContent({ blockId: blockIdAtCursor, offset: cursorPos.offset - 2 }, { blockId: blockIdAtCursor, offset: cursorPos.offset });
+                this.page.deleteContent({
+                    blockId: blockIdAtCursor,
+                    offset: cursorPos.offset - 2
+                }, {blockId: blockIdAtCursor, offset: cursorPos.offset});
                 const newCharInline = new InlineSymbol(crypto.randomUUID(), {type: "x"});
                 this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
                 this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
                 return;
             } else if (textBeforeCursor.endsWith("(?")) {
                 event.preventDefault();
-                this.page.deleteContent({ blockId: blockIdAtCursor, offset: cursorPos.offset - 2 }, { blockId: blockIdAtCursor, offset: cursorPos.offset });
+                this.page.deleteContent({
+                    blockId: blockIdAtCursor,
+                    offset: cursorPos.offset - 2
+                }, {blockId: blockIdAtCursor, offset: cursorPos.offset});
                 const newCharInline = new InlineSymbol(crypto.randomUUID(), {type: "question_mark"});
                 this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
                 this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
                 return;
-            }
-        }
-
-        if (event.key === "*") {
-            const blockIdAtCursor = this.page.selection?.start.blockId;
-            if (!blockIdAtCursor) return;
-            const block = this.page.findBlock(b => b.id === blockIdAtCursor);
-            if (!block || !(block instanceof TextBlock)) return;
-
-            const cursorOffset = this.page.selection!.start.offset;
-            const textBefore = block.getVisualText().slice(0, cursorOffset);
-            const isNextCharStar = block.getVisualText()[cursorOffset] === "*";
-
-            // ** bold
-            if (textBefore.endsWith("*") && !isNextCharStar) {
-                const searchIn = textBefore.slice(0, -1);
-                const idx = searchIn.lastIndexOf("**");
-                if (idx !== -1) {
-                    event.preventDefault();
-                    const contentStart = idx + 2;
-                    const contentEnd = cursorOffset - 1;
-
-                    if (contentEnd > contentStart && block.getVisualText().slice(contentStart, contentEnd).trim()) {
-                        this.page.toggleStyle("bold", {
-                            forceTo: true,
-                            onSelection: {
-                                start: { blockId: blockIdAtCursor, offset: contentStart },
-                                end:   { blockId: blockIdAtCursor, offset: contentEnd },
-                            }
-                        });
-                        this.page.deleteContent(
-                            { blockId: blockIdAtCursor, offset: cursorOffset - 1 },
-                            { blockId: blockIdAtCursor, offset: cursorOffset }
-                        );
-                        this.page.deleteContent(
-                            { blockId: blockIdAtCursor, offset: idx },
-                            { blockId: blockIdAtCursor, offset: idx + 2 }
-                        );
-                        this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset - 3 }, null);
-                        return;
-                    }
-                }
-            }
-
-            // * italic only if not double-star
-            const singleIdx = (() => {
-                for (let i = textBefore.length - 1; i >= 0; i--) {
-                    if (textBefore[i] === "*") {
-                        const isDouble = (i > 0 && textBefore[i - 1] === "*") || (i < textBefore.length - 1 && textBefore[i + 1] === "*");
-                        if (!isDouble) return i;
-                    }
-                }
-                return -1;
-            })();
-
-            if (singleIdx !== -1) {
-                event.preventDefault();
-                const contentStart = singleIdx + 1;
-                const contentEnd = cursorOffset;
-
-                if (contentEnd > contentStart && block.getVisualText().slice(contentStart, contentEnd).trim()) {
-                    this.page.toggleStyle("italic", {
-                        forceTo: true,
-                        onSelection: {
-                            start: { blockId: blockIdAtCursor, offset: contentStart },
-                            end:   { blockId: blockIdAtCursor, offset: contentEnd },
-                        }
-                    });
-                    this.page.deleteContent(
-                        { blockId: blockIdAtCursor, offset: singleIdx },
-                        { blockId: blockIdAtCursor, offset: singleIdx + 1 }
-                    );
-                    this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset - 1 }, null);
-                    return;
-                }
             }
         }
 
@@ -625,6 +570,135 @@ export class KeyboardHandler {
 
         const cursorOffset = this.page.selection!.start.offset;
 
+        if (key === "*") {
+            const textBefore = block.getVisualText().slice(0, cursorOffset);
+            const isNextCharStar = block.getVisualText()[cursorOffset] === "*";
+
+            // ** bold
+            if (textBefore.endsWith("*") && !isNextCharStar) {
+                const searchIn = textBefore.slice(0, -1);
+                const idx = searchIn.lastIndexOf("**");
+                if (idx !== -1) {
+                    const contentStart = idx + 2;
+                    const contentEnd = cursorOffset - 1;
+
+                    if (contentEnd > contentStart && block.getVisualText().slice(contentStart, contentEnd).trim()) {
+                        this.page.toggleStyle("bold", {
+                            forceTo: true,
+                            onSelection: {
+                                start: {blockId: blockIdAtCursor, offset: contentStart},
+                                end: {blockId: blockIdAtCursor, offset: contentEnd},
+                            }
+                        });
+                        this.page.deleteContent(
+                            {blockId: blockIdAtCursor, offset: cursorOffset - 1},
+                            {blockId: blockIdAtCursor, offset: cursorOffset}
+                        );
+                        this.page.deleteContent(
+                            {blockId: blockIdAtCursor, offset: idx},
+                            {blockId: blockIdAtCursor, offset: idx + 2}
+                        );
+                        this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset - 3}, null);
+                        return;
+                    }
+                }
+            }
+
+            // * italic only if not double-star
+            const singleIdx = (() => {
+                for (let i = textBefore.length - 1; i >= 0; i--) {
+                    if (textBefore[i] === "*") {
+                        const isDouble = (i > 0 && textBefore[i - 1] === "*") || (i < textBefore.length - 1 && textBefore[i + 1] === "*");
+                        if (!isDouble) return i;
+                    }
+                }
+                return -1;
+            })();
+
+            if (singleIdx !== -1) {
+                const contentStart = singleIdx + 1;
+                const contentEnd = cursorOffset;
+
+                if (contentEnd > contentStart && block.getVisualText().slice(contentStart, contentEnd).trim()) {
+                    this.page.toggleStyle("italic", {
+                        forceTo: true,
+                        onSelection: {
+                            start: {blockId: blockIdAtCursor, offset: contentStart},
+                            end: {blockId: blockIdAtCursor, offset: contentEnd},
+                        }
+                    });
+                    this.page.deleteContent(
+                        {blockId: blockIdAtCursor, offset: singleIdx},
+                        {blockId: blockIdAtCursor, offset: singleIdx + 1}
+                    );
+                    this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset - 1}, null);
+                    return;
+                }
+            }
+        }
+
+        if (key === "_" || key === "~" || key === "`") {
+            const cursorOffset = this.page.selection!.start.offset;
+            const textBefore = block.getVisualText().slice(0, cursorOffset);
+
+            const tryApplyStyle = (
+                style: "italic" | "underline" | "strikethrough" | "code",
+                marker: string,
+                trailingInText = 0,
+            ): boolean => {
+                const contentEnd = cursorOffset - trailingInText;
+
+                const idx = (() => {
+                    for (let i = textBefore.length - marker.length; i >= 0; i--) {
+                        if (textBefore.slice(i, i + marker.length) === marker) {
+                            const charBefore = textBefore[i - 1];
+                            const charAfter = textBefore[i + marker.length];
+                            if (charBefore === marker[0] || charAfter === marker[0]) continue;
+                            return i;
+                        }
+                    }
+                    return -1;
+                })();
+
+                if (idx === -1) return false;
+
+                const contentStart = idx + marker.length;
+                const content = block.getVisualText().slice(contentStart, contentEnd);
+                if (contentEnd <= contentStart || !content.trim()) return false;
+
+                this.page.toggleStyle(style, {
+                    forceTo: true,
+                    onSelection: {
+                        start: { blockId: blockIdAtCursor, offset: contentStart },
+                        end:   { blockId: blockIdAtCursor, offset: contentEnd },
+                    }
+                });
+                this.page.deleteContent(
+                    { blockId: blockIdAtCursor, offset: contentEnd },
+                    { blockId: blockIdAtCursor, offset: contentEnd + trailingInText }
+                );
+                this.page.deleteContent(
+                    { blockId: blockIdAtCursor, offset: idx },
+                    { blockId: blockIdAtCursor, offset: idx + marker.length }
+                );
+                this.page.setSelection({ blockId: blockIdAtCursor, offset: contentEnd - marker.length }, null);
+                return true;
+            };
+
+            if (key === "_") {
+                if (textBefore.endsWith("_")) {
+                    if (tryApplyStyle("underline", "__", 1)) return;
+                }
+                if (tryApplyStyle("italic", "_", 0)) return;
+            } else if (key === "~") {
+                if (textBefore.endsWith("~")) {
+                    if (tryApplyStyle("strikethrough", "~~", 1)) return;
+                }
+            } else if (key === "`") {
+                if (tryApplyStyle("code", "`", 0)) return;
+            }
+        }
+
         if (key === " ") {
             const textBefore = block.getVisualText().slice(0, cursorOffset);
             if (textBefore.match(/^#{1,6}$/)) {
@@ -636,11 +710,11 @@ export class KeyboardHandler {
             } else if (textBefore.match(/^(\*|-|->)$/)) {
                 let listStyle: ListStyle;
                 if (textBefore === "*") {
-                    listStyle = { type: "bullet" };
+                    listStyle = {type: "bullet"};
                 } else if (textBefore === "-") {
-                    listStyle = { type: "dash" };
+                    listStyle = {type: "dash"};
                 } else {
-                    listStyle = { type: "arrow" };
+                    listStyle = {type: "arrow"};
                 }
                 this.page.updateBlockList(block.id, "unordered", listStyle);
                 this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
@@ -655,15 +729,35 @@ export class KeyboardHandler {
                     let listStyle: ListStyle;
 
                     if (/^[0-9]+$/.test(trigger)) {
-                        listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "number" };
+                        listStyle = {type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "number"};
                     } else if (trigger === "a") {
-                        listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "letter_lowercase" };
+                        listStyle = {
+                            type: "ordered",
+                            prefix: "",
+                            suffix: suffix as "." | ")",
+                            variant: "letter_lowercase"
+                        };
                     } else if (trigger === "A") {
-                        listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "letter_uppercase" };
+                        listStyle = {
+                            type: "ordered",
+                            prefix: "",
+                            suffix: suffix as "." | ")",
+                            variant: "letter_uppercase"
+                        };
                     } else if (trigger === "i") {
-                        listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "roman_lowercase" };
+                        listStyle = {
+                            type: "ordered",
+                            prefix: "",
+                            suffix: suffix as "." | ")",
+                            variant: "roman_lowercase"
+                        };
                     } else {
-                        listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "roman_uppercase" };
+                        listStyle = {
+                            type: "ordered",
+                            prefix: "",
+                            suffix: suffix as "." | ")",
+                            variant: "roman_uppercase"
+                        };
                     }
 
                     this.page.updateBlockList(block.id, "ordered", listStyle);
@@ -675,8 +769,8 @@ export class KeyboardHandler {
             }
         }
 
-        this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, key);
-        this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset + key.length }, null);
+        this.page.insertText({blockId: blockIdAtCursor, offset: cursorOffset}, key);
+        this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset + key.length}, null);
         this.page.cursorXPosition = null;
     }
 }

@@ -37,7 +37,7 @@ export class TextBlock implements Block {
             const inline = this.inlines[i];
             const inlineContentLength = inline instanceof InlineText ? inline.content.length : 1;
 
-            if (remaining < inlineContentLength) {
+            if (remaining <= inlineContentLength) {
                 return {inline, offsetInInline: remaining};
             }
             if (remaining === inlineContentLength && i === this.inlines.length - 1) {
