@@ -142,4 +142,9 @@ body {
 
 .emoji {
     font-family: 'Fluent Emoji Color', sans-serif;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: baseline;
 }

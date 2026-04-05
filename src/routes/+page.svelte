@@ -42,7 +42,7 @@
         }
 
         p.blocks = [
-            createBlock("h1", [createText("Welcome to ZiroInk 📝")]),
+            createBlock("h1", [createText("Welcome to ZiroInk "), createSymbol({type: "emoji", emoji: "📝"})]),
             createBlock("paragraph", [createText("This is a custom rich-text editor built from scratch in Svelte 5. It features pixel-perfect cursor navigation, block variants, and smart lists.")]),
             createBlock("h2", [createText("Core Features")]),
             createBlock("paragraph", [createText("Typography & Formatting")], {

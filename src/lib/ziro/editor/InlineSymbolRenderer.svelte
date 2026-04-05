@@ -12,14 +12,14 @@
         variant: TextBlockVariant,
     } = $props();
 
-    const sizeMap: Record<TextBlockVariant, { container: string, icon: number }> = {
-        h1: { container: "w-8 h-8", icon: 24 },
-        h2: { container: "w-7 h-7", icon: 20 },
-        h3: { container: "w-6 h-6", icon: 16 },
-        h4: { container: "w-5 h-5", icon: 14 },
-        h5: { container: "w-[18px] h-[18px]", icon: 13 },
-        h6: { container: "w-4 h-4", icon: 12 },
-        paragraph: { container: "w-4 h-4", icon: 12 },
+    const sizeMap: Record<TextBlockVariant, { container: string, icon: number, emojiSize: string }> = {
+        h1: { container: "w-8 h-8", icon: 24, emojiSize: "text-5xl" },
+        h2: { container: "w-7 h-7", icon: 20, emojiSize: "text-4xl" },
+        h3: { container: "w-6 h-6", icon: 16, emojiSize: "text-3xl" },
+        h4: { container: "w-5 h-5", icon: 14, emojiSize: "text-2xl" },
+        h5: { container: "w-[18px] h-[18px]", icon: 13, emojiSize: "text-xl" },
+        h6: { container: "w-4 h-4", icon: 12, emojiSize: "text-lg" },
+        paragraph: { container: "w-4 h-4", icon: 12, emojiSize: "text-lg" },
     };
 
     const size = $derived(sizeMap[variant] ?? sizeMap.paragraph);
@@ -49,6 +49,6 @@
         >?
         </div>
     {:else if symbol.symbol.type === "emoji"}
-        <span class="emoji text-lg leading-none select-none">{symbol.symbol.emoji}</span>
+        <span class="emoji {size.emojiSize} leading-none select-none inline-block m-0 p-0">{symbol.symbol.emoji}</span>
     {/if}
 </div>

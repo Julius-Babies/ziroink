@@ -1,5 +1,5 @@
 import type {Page} from "$lib/ziro/Page.svelte";
-import {InlineSymbol, InlineText, type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte";
+import {InlineSymbol, InlineText, type Inline, type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte";
 import {buildOffsetPositions, findClosestLine, handleVerticalNavigation} from "$lib/ziro/VerticalNavigation";
 import {PasteHandler} from "$lib/ziro/PasteHandler";
 
@@ -88,7 +88,59 @@ export class KeyboardHandler {
             const cursorBlockIndex = this.page.blocks.indexOf(cursorBlock);
             const isCursorBlockEmpty = cursorBlock instanceof TextBlock && cursorBlock.getContentLength() === 0;
 
-            if (resultingBlocks.length > 1 && isCursorBlockEmpty) {
+            if (resultingBlocks.length === 1) {
+                const pastedBlock = resultingBlocks[0];
+                if (cursorBlock instanceof TextBlock && pastedBlock instanceof TextBlock) {
+                    const cursorOffset = this.page.selection!.start.offset;
+                    const { inline: targetInline, offsetInInline } = cursorBlock.findInlineAtOffset(cursorOffset);
+                    
+                    if (targetInline instanceof InlineText) {
+                        const textBefore = targetInline.content.substring(0, offsetInInline);
+                        const textAfter = targetInline.content.substring(offsetInInline);
+                        
+                        const newInlines: Inline[] = [];
+                        if (textBefore.length > 0) {
+                            const beforeInline = new InlineText(crypto.randomUUID());
+                            beforeInline.content = textBefore;
+                            Object.assign(beforeInline, targetInline);
+                            newInlines.push(beforeInline);
+                        }
+                        
+                        newInlines.push(...pastedBlock.inlines);
+                        
+                        if (textAfter.length > 0) {
+                            const afterInline = new InlineText(crypto.randomUUID());
+                            afterInline.content = textAfter;
+                            Object.assign(afterInline, targetInline);
+                            newInlines.push(afterInline);
+                        }
+                        
+                        const targetIndex = cursorBlock.inlines.indexOf(targetInline);
+                        cursorBlock.inlines = [
+                            ...cursorBlock.inlines.slice(0, targetIndex),
+                            ...newInlines,
+                            ...cursorBlock.inlines.slice(targetIndex + 1)
+                        ];
+                        
+                        cursorBlock.mergeAdjacentInlines();
+                        
+                        const newOffset = cursorOffset + pastedBlock.getContentLength();
+                        this.page.setSelection({ blockId: cursorBlockId, offset: newOffset }, null);
+                    } else {
+                        const targetIndex = cursorBlock.inlines.indexOf(targetInline);
+                        cursorBlock.inlines = [
+                            ...cursorBlock.inlines.slice(0, targetIndex + 1),
+                            ...pastedBlock.inlines,
+                            ...cursorBlock.inlines.slice(targetIndex + 1)
+                        ];
+                        
+                        cursorBlock.mergeAdjacentInlines();
+                        
+                        const newOffset = cursorOffset + pastedBlock.getContentLength();
+                        this.page.setSelection({ blockId: cursorBlockId, offset: newOffset }, null);
+                    }
+                }
+            } else if (isCursorBlockEmpty) {
                 this.page.blocks = this.page.blocks.filter(b => b.id !== cursorBlockId);
                 const newCursorBlockIndex = cursorBlockIndex;
                 
@@ -104,15 +156,19 @@ export class KeyboardHandler {
                         this.page.blocks = [block, ...this.page.blocks];
                     }
                 }
+                
+                const firstNewBlock = resultingBlocks[0];
+                this.page.setSelection({ blockId: firstNewBlock.id, offset: firstNewBlock.getContentLength() }, null);
             } else {
                 for (let i = 0; i < resultingBlocks.length; i++) {
                     const block = resultingBlocks[i];
                     this.page.insertBlock(block, { type: "after_block", afterId: i === 0 ? cursorBlockId : this.page.blocks[cursorBlockIndex + i].id });
                 }
+                
+                const firstNewBlock = resultingBlocks[0];
+                this.page.setSelection({ blockId: firstNewBlock.id, offset: firstNewBlock.getContentLength() }, null);
             }
             
-            const firstNewBlock = resultingBlocks[0];
-            this.page.setSelection({ blockId: firstNewBlock.id, offset: firstNewBlock.getContentLength() }, null);
             this.page.cursorXPosition = null;
         }
 
