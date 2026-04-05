@@ -228,7 +228,29 @@
         const block = page.findBlock(b => b.id === pos.blockId);
         if (!block || !(block instanceof TextBlock)) return null;
 
-        const { inline, offsetInInline } = block.findInlineAtOffset(pos.offset);
+        let { inline, offsetInInline } = block.findInlineAtOffset(pos.offset);
+        
+        // If we landed on a non-text inline, shift to an adjacent text inline for caret placement
+        if (!(inline instanceof InlineText)) {
+            const inlineIndex = block.inlines.findIndex(i => i.id === inline.id);
+            if (offsetInInline === 0 && inlineIndex > 0) {
+                const prev = block.inlines[inlineIndex - 1];
+                if (prev instanceof InlineText) {
+                    inline = prev;
+                    offsetInInline = prev.content.length;
+                }
+            } else if (inlineIndex < block.inlines.length - 1) {
+                const next = block.inlines[inlineIndex + 1];
+                if (next instanceof InlineText) {
+                    inline = next;
+                    offsetInInline = 0;
+                }
+            } else {
+                return null;
+            }
+        }
+
+        // It might still not be an InlineText if there are multiple consecutive symbols
         if (!(inline instanceof InlineText)) return null;
 
         const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;

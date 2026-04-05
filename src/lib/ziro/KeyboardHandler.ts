@@ -1,5 +1,5 @@
 import type {Page} from "$lib/ziro/Page.svelte";
-import {InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
+import {InlineSymbol, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
 
 const WORD_SEPARATORS = [" ", "|"];
 
@@ -387,6 +387,39 @@ export class KeyboardHandler {
                         }
                     }
                 }
+            }
+        }
+
+        if (event.key === ")") {
+            const cursorPos = this.getCursorPosition();
+            if (!cursorPos) return;
+            const blockIdAtCursor = cursorPos.blockId;
+            const block = this.page.findBlock(b => b.id === blockIdAtCursor);
+            if (!block || !(block instanceof TextBlock)) return;
+
+            const currentInline = block.findInlineAtOffset(cursorPos.offset).inline;
+            const textBeforeCursor = block.getVisualText().slice(0, cursorPos.offset);
+            if (textBeforeCursor.endsWith("(/")) {
+                event.preventDefault();
+                this.page.deleteContent({ blockId: blockIdAtCursor, offset: cursorPos.offset - 2 }, { blockId: blockIdAtCursor, offset: cursorPos.offset });
+                const newCharInline = new InlineSymbol(crypto.randomUUID(), "check");
+                this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
+                this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
+                return;
+            } else if (textBeforeCursor.endsWith("(x")) {
+                event.preventDefault();
+                this.page.deleteContent({ blockId: blockIdAtCursor, offset: cursorPos.offset - 2 }, { blockId: blockIdAtCursor, offset: cursorPos.offset });
+                const newCharInline = new InlineSymbol(crypto.randomUUID(), "x");
+                this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
+                this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
+                return;
+            } else if (textBeforeCursor.endsWith("(?")) {
+                event.preventDefault();
+                this.page.deleteContent({ blockId: blockIdAtCursor, offset: cursorPos.offset - 2 }, { blockId: blockIdAtCursor, offset: cursorPos.offset });
+                const newCharInline = new InlineSymbol(crypto.randomUUID(), "question_mark");
+                this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
+                this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
+                return;
             }
         }
 

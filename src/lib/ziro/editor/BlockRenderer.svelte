@@ -1,8 +1,9 @@
 <script lang="ts">
     import type {Block} from "$lib/ziro/Block";
     import type {Page} from "$lib/ziro/Page.svelte";
-    import {InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
+    import {InlineSymbol, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
     import Editable from "$lib/ziro/editor/Editable.svelte";
+    import InlineSymbolRenderer from "$lib/ziro/editor/InlineSymbolRenderer.svelte";
 
     let {
         block,
@@ -117,7 +118,7 @@
                                 italic={inline.italic}
                                 underline={inline.underline}
                                 strikethrough={inline.strikethrough}
-                        />{/if}{#if index === block.inlines.length - 1 && !(inline instanceof InlineText)}<Editable
+                        />{:else if inline instanceof InlineSymbol}<InlineSymbolRenderer symbol={inline} />{/if}{#if index === block.inlines.length - 1 && !(inline instanceof InlineText)}<Editable
                                 inlineId={inline.id}
                                 type="inline"
                                 blockId={block.id}

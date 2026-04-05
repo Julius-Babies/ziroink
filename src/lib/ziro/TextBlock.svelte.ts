@@ -98,6 +98,25 @@ export abstract class Inline {
     abstract toObject(): any
 }
 
+export class InlineSymbol implements Inline {
+    id: string;
+    symbol: InlineSymbolVariant;
+
+    constructor(id: string, symbol: InlineSymbolVariant) {
+        this.id = id;
+        this.symbol = symbol;
+    }
+
+    toObject() {
+        return {
+            id: this.id,
+            symbol: this.symbol,
+        }
+    }
+}
+
+export type InlineSymbolVariant = "check" | "x" | "question_mark"
+
 export class InlineText implements Inline {
     id: string;
     content: string = $state("");

@@ -1,5 +1,5 @@
 import type {Block} from "$lib/ziro/Block";
-import {InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
+import {Inline, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
 
 
 export class Page {
@@ -234,6 +234,66 @@ export class Page {
         to.italic = from.italic;
         to.underline = from.underline;
         to.strikethrough = from.strikethrough;
+    }
+
+    insertInlineAtOffset(blockId: string, offset: number, inline: Inline) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (!block || !(block instanceof TextBlock)) return;
+
+        const { inline: targetInline, offsetInInline } = block.findInlineAtOffset(offset);
+        const index = block.inlines.findIndex(i => i.id === targetInline.id);
+
+        if (targetInline instanceof InlineText) {
+            const textBefore = targetInline.content.slice(0, offsetInInline);
+            const textAfter = targetInline.content.slice(offsetInInline);
+            
+            targetInline.content = textBefore;
+            const afterInline = new InlineText(crypto.randomUUID());
+            afterInline.content = textAfter;
+            this.copyStyles(targetInline, afterInline);
+
+            block.inlines = [
+                ...block.inlines.slice(0, index + 1),
+                inline,
+                ...(textAfter ? [afterInline] : []),
+                ...block.inlines.slice(index + 1)
+            ];
+        } else {
+            // If we are at a non-text inline, insert before or after based on offset
+            if (offsetInInline === 0) {
+                block.inlines = [
+                    ...block.inlines.slice(0, index),
+                    inline,
+                    ...block.inlines.slice(index)
+                ];
+            } else {
+                block.inlines = [
+                    ...block.inlines.slice(0, index + 1),
+                    inline,
+                    ...block.inlines.slice(index + 1)
+                ];
+            }
+        }
+        
+        // Ensure there's always an InlineText after an InlineSymbol so the user can type
+        const newIndex = block.inlines.findIndex(i => i.id === inline.id);
+        if (newIndex === block.inlines.length - 1 || !(block.inlines[newIndex + 1] instanceof InlineText)) {
+            block.inlines.splice(newIndex + 1, 0, new InlineText(crypto.randomUUID()));
+        }
+    }
+
+    insertInline(blockId: string, inline: Inline, position: { type: "after", afterInlineId: string }) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block && block instanceof TextBlock) {
+            const index = block.inlines.findIndex(i => i.id === position.afterInlineId);
+            if (index !== -1) {
+                block.inlines = [
+                    ...block.inlines.slice(0, index + 1),
+                    inline,
+                    ...block.inlines.slice(index + 1)
+                ];
+            }
+        }
     }
 
     insertText(position: SelectionPosition, text: string) {
