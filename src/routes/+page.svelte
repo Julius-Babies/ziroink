@@ -10,7 +10,7 @@
 
     function createSamplePage() {
         const p = new Page();
-        
+
         function createText(content: string, styles: Partial<InlineText> = {}) {
             const inline = new InlineText(crypto.randomUUID());
             inline.content = content;
@@ -33,35 +33,68 @@
             return block;
         }
 
+        function orderedListStyle(prefix: "" | "(", suffix: "." | "" | ")", variant: "number" | "letter_uppercase" | "letter_lowercase" | "roman_uppercase" | "roman_lowercase") {
+            return { type: "ordered" as const, prefix, suffix, variant };
+        }
+
         p.blocks = [
             createBlock("h1", [createText("Welcome to ZiroInk 📝")]),
             createBlock("paragraph", [createText("This is a custom rich-text editor built from scratch in Svelte 5. It features pixel-perfect cursor navigation, block variants, and smart lists.")]),
             createBlock("h2", [createText("Core Features")]),
-            createBlock("paragraph", [createText("Typography & Formatting")], { listType: "unordered", listStyle: "*" }),
+            createBlock("paragraph", [createText("Typography & Formatting")], {
+                listType: "unordered",
+                listStyle: {type: "bullet"}
+            }),
             createBlock("paragraph", [
                 createText("You can easily make text "),
-                createText("bold", { bold: true }),
+                createText("bold", {bold: true}),
                 createText(", "),
-                createText("italic", { italic: true }),
+                createText("italic", {italic: true}),
                 createText(", "),
-                createText("underlined", { underline: true }),
+                createText("underlined", {underline: true}),
                 createText(", or "),
-                createText("struck through", { strikethrough: true }),
+                createText("struck through", {strikethrough: true}),
                 createText(" using keyboard shortcuts (CMD+B, I, U, J).")
-            ], { indent: 1 }),
-            createBlock("paragraph", [createText("Smart Lists & Indentation")], { listType: "unordered", listStyle: "->" }),
-            createBlock("paragraph", [createText("Block Variants (H1 - H6)")], { listType: "unordered", listStyle: "-" }),
+            ], {indent: 1}),
+            createBlock("paragraph", [createText("Smart Lists & Indentation")], {
+                listType: "unordered",
+                listStyle: {type: "arrow"}
+            }),
+            createBlock("paragraph", [createText("Block Variants (H1 - H6)")], {listType: "unordered", listStyle: {type: "dash"}}),
             createBlock("h2", [createText("How Lists Work")]),
-            createBlock("paragraph", [createText("Start an ordered list by typing '1.' or 'a)'")], { listType: "ordered", listStyle: "1." }),
-            createBlock("paragraph", [createText("This is a continuation block! It has no list indicator, but because it shares the same indentation level as the list item above it, it visually aligns perfectly with the list text. You can create these by pressing Enter and then Backspace to remove the list marker, or Ctrl+Enter.")], { indent: 1 }),
-            createBlock("paragraph", [createText("Nested lists also work beautifully:")], { listType: "ordered", listStyle: "1.", indent: 2 }),
-            createBlock("paragraph", [createText("Roman numerals!")], { listType: "ordered", listStyle: "I.", indent: 3 }),
-            createBlock("paragraph", [createText("And more roman numerals")], { listType: "ordered", listStyle: "I.", indent: 3 }),
-            createBlock("paragraph", [createText("Letters work too")], { listType: "ordered", listStyle: "a)", indent: 2 }),
-            createBlock("paragraph", [createText("And it keeps counting")], { listType: "ordered", listStyle: "1.", indent: 1 }),
+            createBlock("paragraph", [createText("Start an ordered list by typing '1.' or 'a)'")], {
+                listType: "ordered",
+                listStyle: orderedListStyle("", ".", "number")
+            }),
+            createBlock("paragraph", [createText("This is a continuation block! It has no list indicator, but because it shares the same indentation level as the list item above it, it visually aligns perfectly with the list text. You can create these by pressing Enter and then Backspace to remove the list marker, or Ctrl+Enter.")], {indent: 1}),
+            createBlock("paragraph", [createText("Nested lists also work beautifully:")], {
+                listType: "ordered",
+                listStyle: orderedListStyle("", ".", "number"),
+                indent: 2
+            }),
+            createBlock("paragraph", [createText("Roman numerals!")], {
+                listType: "ordered",
+                listStyle: orderedListStyle("", ".", "roman_uppercase"),
+                indent: 3
+            }),
+            createBlock("paragraph", [createText("And more roman numerals")], {
+                listType: "ordered",
+                listStyle: orderedListStyle("", ".", "roman_uppercase"),
+                indent: 3
+            }),
+            createBlock("paragraph", [createText("Letters work too")], {
+                listType: "ordered",
+                listStyle: orderedListStyle("", ")", "letter_lowercase"),
+                indent: 2
+            }),
+            createBlock("paragraph", [createText("And it keeps counting")], {
+                listType: "ordered",
+                listStyle: orderedListStyle("", ")", "number"),
+                indent: 1
+            }),
             createBlock("paragraph", []),
         ];
-        
+
         return p;
     }
 

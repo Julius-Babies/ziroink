@@ -1,5 +1,5 @@
 import type {Page} from "$lib/ziro/Page.svelte";
-import {InlineSymbol, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
+import {InlineSymbol, InlineText, type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte";
 
 const WORD_SEPARATORS = [" ", "|"];
 
@@ -444,15 +444,39 @@ export class KeyboardHandler {
                     this.page.cursorXPosition = null;
                     return;
                 } else if (textBefore.match(/^(\*|-|->)$/)) {
-                    this.page.updateBlockList(block.id, "unordered", textBefore);
+                    let listStyle: ListStyle;
+                    if (textBefore === "*") {
+                        listStyle = { type: "bullet" };
+                    } else if (textBefore === "-") {
+                        listStyle = { type: "dash" };
+                    } else {
+                        listStyle = { type: "arrow" };
+                    }
+                    this.page.updateBlockList(block.id, "unordered", listStyle);
                     this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
                     this.page.setSelection({blockId: block.id, offset: 0}, null);
                     this.page.cursorXPosition = null;
                     return;
                 } else {
-                    const orderedMatch = textBefore.match(/^([0-9]+|a|A|i|I)([\.\)])$/);
+                    const orderedMatch = textBefore.match(/^([0-9]+|a|A|i|I)([.)])$/);
                     if (orderedMatch) {
-                        this.page.updateBlockList(block.id, "ordered", orderedMatch[0]);
+                        const trigger = orderedMatch[1];
+                        const suffix = orderedMatch[2];
+                        let listStyle: ListStyle;
+
+                        if (/^[0-9]+$/.test(trigger)) {
+                            listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "number" };
+                        } else if (trigger === "a") {
+                            listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "letter_lowercase" };
+                        } else if (trigger === "A") {
+                            listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "letter_uppercase" };
+                        } else if (trigger === "i") {
+                            listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "roman_lowercase" };
+                        } else {
+                            listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "roman_uppercase" };
+                        }
+
+                        this.page.updateBlockList(block.id, "ordered", listStyle);
                         this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
                         this.page.setSelection({blockId: block.id, offset: 0}, null);
                         this.page.cursorXPosition = null;

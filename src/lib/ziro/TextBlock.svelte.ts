@@ -2,13 +2,18 @@ import type {Block} from "$lib/ziro/Block";
 
 export type TextBlockVariant = "paragraph" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
-export class TextBlock implements Block{
+export type ListStyle = { type: "bullet" } |
+    { type: "dash" } |
+    { type: "arrow" } |
+    { type: "ordered", prefix: "(" | "", suffix: "." | "" | ")", variant: "letter_uppercase" | "letter_lowercase" | "roman_uppercase" | "roman_lowercase" | "number" }
+
+export class TextBlock implements Block {
     id: string;
     inlines: Inline[] = $state([])
     variant: TextBlockVariant = $state("paragraph")
     indentLevel: number = $state(0);
     listType: "unordered" | "ordered" | null = $state(null);
-    listStyle: string | null = $state(null);
+    listStyle: ListStyle | null = $state(null);
 
     constructor(id: string) {
         this.id = id;
@@ -31,12 +36,12 @@ export class TextBlock implements Block{
         for (let i = 0; i < this.inlines.length; i++) {
             const inline = this.inlines[i];
             const inlineContentLength = inline instanceof InlineText ? inline.content.length : 1;
-            
+
             if (remaining < inlineContentLength) {
-                return { inline, offsetInInline: remaining };
+                return {inline, offsetInInline: remaining};
             }
             if (remaining === inlineContentLength && i === this.inlines.length - 1) {
-                return { inline, offsetInInline: remaining };
+                return {inline, offsetInInline: remaining};
             }
             remaining -= inlineContentLength;
         }
@@ -147,8 +152,8 @@ export class InlineText implements Inline {
      */
     isSameStyleAs(other: InlineText): boolean {
         return this.bold === other.bold &&
-               this.italic === other.italic &&
-               this.underline === other.underline &&
-               this.strikethrough === other.strikethrough;
+            this.italic === other.italic &&
+            this.underline === other.underline &&
+            this.strikethrough === other.strikethrough;
     }
 }

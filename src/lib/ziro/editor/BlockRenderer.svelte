@@ -4,6 +4,8 @@
     import {InlineSymbol, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
     import Editable from "$lib/ziro/editor/Editable.svelte";
     import InlineSymbolRenderer from "$lib/ziro/editor/InlineSymbolRenderer.svelte";
+    import PlaceholderRenderer from "$lib/ziro/editor/PlaceholderRenderer.svelte";
+    import ListIndicator from "$lib/ziro/editor/ListIndicator.svelte";
 
     let {
         block,
@@ -29,17 +31,6 @@
     let isEmpty = $derived(block instanceof TextBlock && block.getContentLength() === 0);
     let showPlaceholder = $derived(isFocused && isEmpty);
 
-    function getPlaceholderText(block: TextBlock) {
-        if (block.variant === "paragraph") return "Tippen, oder / für Befehle";
-        if (block.variant === "h1") return "Überschrift 1";
-        if (block.variant === "h2") return "Überschrift 2";
-        if (block.variant === "h3") return "Überschrift 3";
-        if (block.variant === "h4") return "Überschrift 4";
-        if (block.variant === "h5") return "Überschrift 5";
-        if (block.variant === "h6") return "Überschrift 6";
-        return "";
-    }
-
     function toRoman(num: number): string {
         const lookup: Record<string, number> = {M:1000,CM:900,D:500,CD:400,C:100,XC:90,L:50,XL:40,X:10,IX:9,V:5,IV:4,I:1};
         let roman = '';
@@ -51,56 +42,17 @@
         }
         return roman;
     }
-
-    function getListMarker(block: TextBlock, blocks: Block[]): string {
-        if (!block.listType) return "";
-        
-        if (block.listType === "unordered") {
-            if (block.listStyle === "*") return "•";
-            if (block.listStyle === "->") return "→";
-            return "-";
-        }
-        
-        let count = 1;
-        const index = blocks.indexOf(block);
-        for (let i = index - 1; i >= 0; i--) {
-            const prev = blocks[i];
-            if (!(prev instanceof TextBlock)) continue;
-            
-            if (prev.indentLevel < block.indentLevel) break;
-            
-            if (prev.indentLevel === block.indentLevel) {
-                if (prev.listType === "ordered") {
-                    count++;
-                } else if (prev.listType === "unordered") {
-                    break;
-                }
-            }
-        }
-        
-        const style = block.listStyle || "1.";
-        const punctuation = style.slice(-1); 
-        const type = style.slice(0, -1);
-        
-        if (type === "1") return count.toString() + punctuation;
-        if (type === "a") return String.fromCharCode(96 + ((count - 1) % 26 + 1)) + punctuation;
-        if (type === "A") return String.fromCharCode(64 + ((count - 1) % 26 + 1)) + punctuation;
-        if (type === "i") return toRoman(count).toLowerCase() + punctuation;
-        if (type === "I") return toRoman(count) + punctuation;
-        
-        return count.toString() + punctuation;
-    }
 </script>
 
 {#if block instanceof TextBlock}
     <div class="relative w-full shrink-0 min-h-[1.5em] {getVariantClass(block)}" style="margin-left: {(block.indentLevel - (block.listType ? 1 : 0)) * 32}px;" data-ziro-block-id={block.id}>
         <div class="flex flex-row w-full">
             {#if block.listType}
-                <div class="shrink-0 text-right pr-2 select-none pointer-events-none text-gray-600" contenteditable="false" style="width: 32px;">{getListMarker(block, page.blocks)}</div>
+                <ListIndicator block={block} page={page} />
             {/if}
             <div class="grow relative min-h-[1.5em]">
                 {#if showPlaceholder}
-                    <div class="absolute left-0 top-0 text-gray-400 pointer-events-none select-none">{getPlaceholderText(block)}</div>
+                    <PlaceholderRenderer block={block} />
                 {/if}
                 {#each block.inlines as inline, index (inline.id)}{#if index === 0 && !(inline instanceof InlineText)}<Editable
                                 inlineId={inline.id}
