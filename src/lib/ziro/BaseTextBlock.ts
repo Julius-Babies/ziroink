@@ -18,8 +18,6 @@ export abstract class BaseTextBlock implements Block {
     abstract listType: "unordered" | "ordered" | null;
     abstract listStyle: ListStyle | null;
 
-
-
     toObject() {
         return {
             id: this.id,
@@ -29,6 +27,7 @@ export abstract class BaseTextBlock implements Block {
             indentLevel: this.indentLevel,
             listType: this.listType,
             listStyle: this.listStyle,
+            sortKey: this.sortKey,
         }
     }
 
@@ -90,6 +89,13 @@ export abstract class BaseTextBlock implements Block {
                 merged.push(inline);
             }
         }
+        
+        let currentKey = null;
+        for (const inl of merged) {
+            inl.sortKey = generateKeyBetween(currentKey, null);
+            currentKey = inl.sortKey;
+        }
+
         this.inlines = merged;
     }
 }
@@ -98,8 +104,6 @@ export abstract class BaseInline {
     abstract sortKey: string;
 
     abstract id: string;
-
-
 
     abstract toObject(): any
 }
@@ -118,10 +122,6 @@ export abstract class BaseInlineSymbol extends BaseInline {
             emoji: this.symbol.type === "emoji" ? this.symbol.emoji : undefined,
         }
     }
-
-    getEmoji(): string | null {
-        return this.symbol.type === "emoji" ? this.symbol.emoji : null;
-    }
 }
 
 export type BaseInlineSymbolVariant = {type: "check"} | {type: "x"} | {type: "question_mark"} | {type: "emoji", emoji: string}
@@ -136,8 +136,6 @@ export abstract class BaseInlineText extends BaseInline {
     abstract strikethrough: boolean;
     abstract code: boolean;
 
-
-
     toObject() {
         return {
             id: this.id,
@@ -148,6 +146,7 @@ export abstract class BaseInlineText extends BaseInline {
             underline: this.underline,
             strikethrough: this.strikethrough,
             code: this.code,
+            sortKey: this.sortKey,
         }
     }
 

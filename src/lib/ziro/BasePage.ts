@@ -101,10 +101,17 @@ export abstract class BasePage {
                 throw new Error("Failed to find block with id " + position.afterId);
             }
 
+            const prevKey = this.blocks[index].sortKey;
+            const nextKey = index + 1 < this.blocks.length ? this.blocks[index + 1].sortKey : null;
+            block.sortKey = generateKeyBetween(prevKey, nextKey);
+
             this.blocks = [...this.blocks.slice(0, index + 1), block, ...this.blocks.slice(index + 1)]
             this.emit({ type: "block_inserted", blockId: block.id, position });
             return;
         } else if (position.type === "end") {
+            const prevKey = this.blocks.length > 0 ? this.blocks[this.blocks.length - 1].sortKey : null;
+            block.sortKey = generateKeyBetween(prevKey, null);
+
             this.blocks = [...this.blocks, block]
             this.emit({ type: "block_inserted", blockId: block.id, position });
         }
@@ -160,10 +167,23 @@ export abstract class BasePage {
         }
 
         if (newBlock.inlines.length === 0) {
-            newBlock.inlines = [this.factory.createInlineText()];
+            const emptyInline = this.factory.createInlineText();
+            emptyInline.sortKey = generateKeyBetween(null, null);
+            newBlock.inlines = [emptyInline];
+        } else {
+            // Assign sort keys to the inlines of the new block
+            let prevKey = null;
+            for (const inl of newBlock.inlines) {
+                inl.sortKey = generateKeyBetween(prevKey, null);
+                prevKey = inl.sortKey;
+            }
         }
 
         block._mergeAdjacentBaseInlines();
+        
+        const blockPrevKey = block.sortKey;
+        const blockNextKey = blockIndex + 1 < this.blocks.length ? this.blocks[blockIndex + 1].sortKey : null;
+        newBlock.sortKey = generateKeyBetween(blockPrevKey, blockNextKey);
 
         this.blocks = [...this.blocks.slice(0, blockIndex + 1), newBlock, ...this.blocks.slice(blockIndex + 1)];
 
@@ -213,6 +233,7 @@ export abstract class BasePage {
         const block = this.factory.createTextBlock();
         const inline = this.factory.createInlineText();
         inline.content = "";
+        inline.sortKey = generateKeyBetween(null, null);
         block.inlines = [inline];
         this.insertBlock(block, { type: "end" });
         return block.id;
@@ -396,15 +417,22 @@ export abstract class BasePage {
         const endIdx = block.inlines.findIndex(inl => inlineEnd.inline.id === inl.id);
 
         let newInlines = [];
+        let currentKey = startIdx > 0 ? block.inlines[startIdx - 1].sortKey : null;
 
         for (let i = 0; i < block.inlines.length; i++) {
             const inline = block.inlines[i];
             if (!(inline instanceof BaseInlineText)) {
+                if (i >= startIdx) {
+                    currentKey = inline.sortKey = generateKeyBetween(currentKey, null);
+                }
                 newInlines.push(inline);
                 continue;
             }
 
             if (i < startIdx || i > endIdx) {
+                if (i > endIdx) {
+                    currentKey = inline.sortKey = generateKeyBetween(currentKey, null);
+                }
                 newInlines.push(inline);
                 continue;
             }
@@ -418,6 +446,7 @@ export abstract class BasePage {
                     const inl1 = this.factory.createInlineText();
                     inl1.content = p1;
                     this.copyStyles(inline, inl1);
+                    currentKey = inl1.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl1);
                 }
                 if (p2) {
@@ -425,12 +454,14 @@ export abstract class BasePage {
                     inl2.content = p2;
                     this.copyStyles(inline, inl2);
                     inl2[style] = value;
+                    currentKey = inl2.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl2);
                 }
                 if (p3) {
                     const inl3 = this.factory.createInlineText();
                     inl3.content = p3;
                     this.copyStyles(inline, inl3);
+                    currentKey = inl3.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl3);
                 }
             } else if (i === startIdx) {
@@ -441,6 +472,7 @@ export abstract class BasePage {
                     const inl1 = this.factory.createInlineText();
                     inl1.content = p1;
                     this.copyStyles(inline, inl1);
+                    currentKey = inl1.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl1);
                 }
                 if (p2) {
@@ -448,6 +480,7 @@ export abstract class BasePage {
                     inl2.content = p2;
                     this.copyStyles(inline, inl2);
                     inl2[style] = value;
+                    currentKey = inl2.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl2);
                 }
             } else if (i === endIdx) {
@@ -459,12 +492,14 @@ export abstract class BasePage {
                     inl1.content = p1;
                     this.copyStyles(inline, inl1);
                     inl1[style] = value;
+                    currentKey = inl1.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl1);
                 }
                 if (p2) {
                     const inl2 = this.factory.createInlineText();
                     inl2.content = p2;
                     this.copyStyles(inline, inl2);
+                    currentKey = inl2.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl2);
                 }
             } else {
@@ -472,6 +507,7 @@ export abstract class BasePage {
                 inl.content = inline.content;
                 this.copyStyles(inline, inl);
                 inl[style] = value;
+                currentKey = inl.sortKey = generateKeyBetween(currentKey, null);
                 newInlines.push(inl);
             }
         }
@@ -503,6 +539,9 @@ export abstract class BasePage {
             const afterBaseInline = this.factory.createInlineText();
             afterBaseInline.content = textAfter;
             this.copyStyles(targetBaseInline, afterBaseInline);
+            
+            inline.sortKey = generateKeyBetween(targetBaseInline.sortKey, null);
+            afterBaseInline.sortKey = generateKeyBetween(inline.sortKey, null);
 
             block.inlines = [
                 ...block.inlines.slice(0, index + 1),
@@ -510,14 +549,31 @@ export abstract class BasePage {
                 ...(textAfter ? [afterBaseInline] : []),
                 ...block.inlines.slice(index + 1)
             ];
+            
+            // Recalculate sort keys for remaining to keep them ordered, or we can just regenerate keys for the split items correctly
+            // Actually, afterBaseInline should be between inline and the NEXT original inline
+            const nextOriginalInline = block.inlines[index + (textAfter ? 3 : 2)];
+            const nextKey = nextOriginalInline ? nextOriginalInline.sortKey : null;
+            
+            inline.sortKey = generateKeyBetween(targetBaseInline.sortKey, nextKey);
+            if (textAfter) {
+                afterBaseInline.sortKey = generateKeyBetween(inline.sortKey, nextKey);
+            }
+            
         } else {
+            const prevKey = index > 0 ? block.inlines[index - 1].sortKey : null;
+            const nextKey = targetBaseInline.sortKey;
+            
             if (offsetInInline === 0) {
+                inline.sortKey = generateKeyBetween(prevKey, nextKey);
                 block.inlines = [
                     ...block.inlines.slice(0, index),
                     inline,
                     ...block.inlines.slice(index)
                 ];
             } else {
+                const afterNextKey = index + 1 < block.inlines.length ? block.inlines[index + 1].sortKey : null;
+                inline.sortKey = generateKeyBetween(targetBaseInline.sortKey, afterNextKey);
                 block.inlines = [
                     ...block.inlines.slice(0, index + 1),
                     inline,
@@ -528,7 +584,10 @@ export abstract class BasePage {
         
         const newIndex = block.inlines.findIndex(i => i.id === inline.id);
         if (newIndex === block.inlines.length - 1 || !(block.inlines[newIndex + 1] instanceof BaseInlineText)) {
-            block.inlines.splice(newIndex + 1, 0, this.factory.createInlineText());
+            const emptyInline = this.factory.createInlineText();
+            const nextKey = newIndex + 1 < block.inlines.length ? block.inlines[newIndex + 1].sortKey : null;
+            emptyInline.sortKey = generateKeyBetween(inline.sortKey, nextKey);
+            block.inlines.splice(newIndex + 1, 0, emptyInline);
         }
 
         this.emit({
@@ -546,6 +605,7 @@ export abstract class BasePage {
         if (block.inlines.length === 0) {
             const newBaseInline = this.factory.createInlineText();
             newBaseInline.content = text;
+            newBaseInline.sortKey = generateKeyBetween(null, null);
             block.inlines = [newBaseInline];
             this.emit({ type: "text_inserted", blockId: position.blockId, offset: 0, text });
             return;
@@ -559,6 +619,7 @@ export abstract class BasePage {
             } else {
                 const newBaseInline = this.factory.createInlineText();
                 newBaseInline.content = text;
+                newBaseInline.sortKey = generateKeyBetween(lastBaseInline.sortKey, null);
                 block.inlines = [...block.inlines, newBaseInline];
             }
             this.emit({ type: "text_inserted", blockId: position.blockId, offset: position.offset, text });
@@ -572,6 +633,8 @@ export abstract class BasePage {
             const newBaseInline = this.factory.createInlineText();
             newBaseInline.content = text;
             const index = block.inlines.findIndex(i => i.id === inline.id);
+            const prevKey = index > 0 ? block.inlines[index - 1].sortKey : null;
+            newBaseInline.sortKey = generateKeyBetween(prevKey, inline.sortKey);
             block.inlines = [...block.inlines.slice(0, index), newBaseInline, ...block.inlines.slice(index)];
         }
 
@@ -666,6 +729,11 @@ export abstract class BasePage {
         }
 
         if (startBlock instanceof BaseTextBlock && endBlock instanceof BaseTextBlock) {
+            let prevKey = startBlock.inlines.length > 0 ? startBlock.inlines[startBlock.inlines.length - 1].sortKey : null;
+            for (const inl of endBlock.inlines) {
+                inl.sortKey = generateKeyBetween(prevKey, null);
+                prevKey = inl.sortKey;
+            }
             startBlock.inlines = [...startBlock.inlines, ...endBlock.inlines];
             startBlock._mergeAdjacentBaseInlines();
             this.blocks = this.blocks.filter(b => b.id !== endBlock.id);

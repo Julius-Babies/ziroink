@@ -1,7 +1,7 @@
 <script lang="ts">
     import {JsonView} from "@zerodevx/svelte-json-view";
     import {ClientFactory} from "$lib/ziro/client/ClientModels.svelte";
-import type {BasePage} from "$lib/ziro/BasePage";
+    import type {BasePage} from "$lib/ziro/BasePage";
     import {BaseInlineSymbol, type BaseInlineSymbolVariant, BaseInlineText, BaseTextBlock} from "$lib/ziro/BaseTextBlock";
     import BottomWhitespace from "$lib/ziro/editor/BottomWhitespace.svelte";
     import BlockRenderer from "$lib/ziro/editor/BlockRenderer.svelte";
@@ -11,6 +11,7 @@ import type {BasePage} from "$lib/ziro/BasePage";
     import { authClient } from "$lib/client";
     import {Tabs, TabsList, TabsTrigger} from "$lib/components/ui/tabs";
     import Login from "$lib/components/Login.svelte";
+    import { generateKeyBetween } from "fractional-indexing";
 
     function createSamplePage() {
         const factory = new ClientFactory();
@@ -46,7 +47,7 @@ import type {BasePage} from "$lib/ziro/BasePage";
             return { type: "ordered" as const, prefix, suffix, variant };
         }
 
-        p.setBlocks([
+        const blocks = [
             createBlock("h1", [createText("Welcome to ZiroInk "), createSymbol({type: "emoji", emoji: "📝"})]),
             createBlock("paragraph", [createText("This is a custom rich-text editor built from scratch in Svelte 5. It features pixel-perfect cursor navigation, block variants, and smart lists.")]),
             createBlock("h2", [createText("Core Features")]),
@@ -127,7 +128,21 @@ import type {BasePage} from "$lib/ziro/BasePage";
                 createText(" — just paste or type them!"),
             ]),
             createBlock("paragraph", []),
-        ]);
+        ];
+
+        let prevBlockKey: string | null = null;
+        for (const block of blocks) {
+            (block as any).sortKey = generateKeyBetween(prevBlockKey, null);
+            prevBlockKey = (block as any).sortKey;
+
+            let prevInlineKey: string | null = null;
+            for (const inline of (block as any).inlines) {
+                inline.sortKey = generateKeyBetween(prevInlineKey, null);
+                prevInlineKey = inline.sortKey;
+            }
+        }
+
+        p.setBlocks(blocks);
         p.clearEventQueue();
 
         return p;
