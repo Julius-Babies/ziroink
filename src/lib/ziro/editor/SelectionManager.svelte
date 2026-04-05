@@ -269,9 +269,14 @@
     function getNormalizedSelectionRects(range: Range): Rect[] {
         const textRects: Rect[] = [];
 
+        const rootNode = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+            ? range.commonAncestorContainer.parentElement
+            : range.commonAncestorContainer;
+        if (!rootNode) return [];
+
         // Walk only the text nodes within the range and collect their rects
         const treeWalker = document.createTreeWalker(
-            range.commonAncestorContainer,
+            rootNode,
             NodeFilter.SHOW_TEXT,
             {
                 acceptNode(node) {
@@ -292,12 +297,6 @@
             if (range.compareBoundaryPoints(Range.END_TO_START, nodeRange) >= 0) continue;
             if (range.compareBoundaryPoints(Range.START_TO_END, nodeRange) <= 0) continue;
 
-            const startOffset = range.compareBoundaryPoints(Range.START_TO_END, nodeRange) < 0
-                ? Math.max(0, range.startOffset) : 0;
-            const endOffset = range.compareBoundaryPoints(Range.END_TO_START, nodeRange) < 0
-                ? Math.min(text.length, range.endOffset) : text.length;
-
-            // Recalculate proper offsets for this specific text node
             const actualStart = (text === range.startContainer) ? range.startOffset : 0;
             const actualEnd = (text === range.endContainer) ? range.endOffset : text.length;
 
