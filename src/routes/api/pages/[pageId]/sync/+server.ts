@@ -6,6 +6,7 @@ import { eq, inArray } from "drizzle-orm";
 import type { PageEvent } from "$lib/ziro/Events";
 import type { RequestEvent } from "@sveltejs/kit";
 import { pubsub } from "$lib/server/events";
+import { ServerFactory } from "$lib/ziro/server/ServerModels";
 
 export const POST = async ({ request, params }: RequestEvent) => {
     const session = await auth.api.getSession({
@@ -87,6 +88,22 @@ export const POST = async ({ request, params }: RequestEvent) => {
         modifiedBlocks,
         deletedBlockIds: Array.from(blocksToDelete)
     });
+
+    // Check if the title block (first block) was modified and emit a sidebar update
+    const titleBlock = modifiedBlocks.find(b => b.sortKey === "a0" || b.variant === "h1");
+    if (titleBlock) {
+        let title = "Untitled";
+        const factory = new ServerFactory();
+        const blockObj = factory.fromObject(titleBlock as any);
+        const displayText = blockObj.toDisplayText();
+        if (displayText) {
+            title = displayText;
+        }
+        pubsub.emit(`sidebar_title_update`, {
+            pageId,
+            title
+        });
+    }
 
     return json({ success: true, syncedBlocks: modifiedBlocks.length, deletedBlocks: blocksToDelete.size });
 };

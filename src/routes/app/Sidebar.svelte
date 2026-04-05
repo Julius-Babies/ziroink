@@ -15,6 +15,7 @@
     
     // We derive local state from the layout load data
     let pages = $state<ApiPage[]>(page.data.pages || []);
+    let titleSubscriptions = new Map<string, EventSource>();
 
     function onMouseDown() {
         isResizing = true;
@@ -44,7 +45,21 @@
             }
         };
 
-        return () => source.close();
+        // SSE connection for real-time title updates
+        const titleSource = new EventSource('/api/pages/title-sync');
+        titleSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const p = pages.find(pg => pg.id === data.pageId);
+            if (p) {
+                p.title = data.title;
+                pages = [...pages];
+            }
+        };
+
+        return () => {
+            source.close();
+            titleSource.close();
+        };
     });
 
     async function createPage() {
@@ -84,13 +99,13 @@
         
         <!-- Pages List -->
         <div class="flex flex-col gap-1 overflow-y-auto">
-            {#each pages as p}
+            {#each pages as p (p.id)}
                 <a 
                     href="/app/{p.id}"
                     class="px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-200 rounded truncate block"
                     class:bg-zinc-200={page.url.pathname === `/app/${p.id}`}
                 >
-                    {p.id}
+                    {p.title}
                 </a>
             {:else}
                 <div class="text-xs text-zinc-400 italic py-2">No pages found</div>

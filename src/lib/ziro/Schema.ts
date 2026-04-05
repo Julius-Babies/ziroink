@@ -1,0 +1,32 @@
+import type { BaseTextBlockVariant, ListStyle } from "./BaseTextBlock";
+
+export interface InlineObject {
+    id: string;
+    type?: "text";
+    content?: string;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    strikethrough?: boolean;
+    code?: boolean;
+    symbolType?: "check" | "x" | "question_mark" | "emoji";
+    emoji?: string;
+    sortKey: string;
+}
+
+export interface BlockObject {
+    id: string;
+    type: string;
+    variant: BaseTextBlockVariant;
+    indentLevel: number;
+    listType: "unordered" | "ordered" | null;
+    listStyle?: ListStyle;
+    // Database specific fields that might be present
+    listStyleType?: any;
+    listStylePrefix?: any;
+    listStyleSuffix?: any;
+    listStyleVariant?: any;
+    sortKey: string;
+    inlines?: InlineObject[];
+    content?: InlineObject[]; // Alternative field used in some contexts
+}

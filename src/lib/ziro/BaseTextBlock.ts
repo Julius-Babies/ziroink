@@ -84,6 +84,14 @@ export abstract class BaseTextBlock implements Block {
         }, "")
     }
 
+    /**
+     * Returns a string that represents the content of this TextBlock. Not to be confused with [getVisualText] which
+     * returns a string to determine caret positions, this one tries to create the best string variant of the inlines.
+     */
+    toDisplayText(): string {
+        return this.inlines.map(inline => inline.toDisplayText()).join("")
+    }
+
     _mergeAdjacentBaseInlines() {
         const merged: BaseInline[] = [];
         for (const inline of this.inlines) {
@@ -111,14 +119,14 @@ export abstract class BaseInline {
     abstract id: string;
 
     abstract toObject(): any
+
+    abstract toDisplayText(): string
 }
 
 export abstract class BaseInlineSymbol extends BaseInline {
     abstract id: string;
     abstract sortKey: string;
     abstract symbol: BaseInlineSymbolVariant;
-
-
 
     toObject() {
         return {
@@ -127,6 +135,14 @@ export abstract class BaseInlineSymbol extends BaseInline {
             emoji: this.symbol.type === "emoji" ? this.symbol.emoji : undefined,
             sortKey: this.sortKey,
         }
+    }
+
+    toDisplayText(): string {
+        if (this.symbol.type === "check") return "✓";
+        if (this.symbol.type === "x") return "✗";
+        if (this.symbol.type === "question_mark") return "?";
+        if (this.symbol.type === "emoji") return this.symbol.emoji;
+        return "";
     }
 }
 
@@ -166,5 +182,9 @@ export abstract class BaseInlineText extends BaseInline {
             this.underline === other.underline &&
             this.strikethrough === other.strikethrough &&
             this.code === other.code;
+    }
+
+    toDisplayText(): string {
+        return this.content;
     }
 }

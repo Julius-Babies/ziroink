@@ -23,57 +23,13 @@
         if (data.blocks && data.blocks.length > 0) {
             let lastValidBlockSortKey: string | null = null;
             const reconstructedBlocks = data.blocks.map((dbBlock: any) => {
-                const block = factory.createTextBlock(dbBlock.id);
-                (block as any).variant = dbBlock.variant;
-                (block as any).indentLevel = dbBlock.indentLevel;
-                if (dbBlock.listType) {
-                    (block as any).listType = dbBlock.listType;
-                    (block as any).listStyle = {
-                        type: dbBlock.listStyleType,
-                        prefix: dbBlock.listStylePrefix,
-                        suffix: dbBlock.listStyleSuffix,
-                        variant: dbBlock.listStyleVariant
-                    };
-                }
+                const block = factory.fromObject(dbBlock);
                 
-                let bSortKey = dbBlock.sortKey;
-                if (!bSortKey || bSortKey === "0") {
-                    bSortKey = generateKeyBetween(lastValidBlockSortKey, null);
+                // Keep the manual sort key fix for now if needed, though fromObject handles most of it
+                if (!block.sortKey || block.sortKey === "0") {
+                    block.sortKey = generateKeyBetween(lastValidBlockSortKey, null);
                 }
-                (block as any).sortKey = bSortKey;
-                lastValidBlockSortKey = bSortKey;
-
-                const inlines = Array.isArray(dbBlock.content) ? dbBlock.content : [];
-                let lastValidInlineSortKey: string | null = null;
-                block.inlines = inlines.map((inl: any, index: number) => {
-                    let inlSortKey = inl.sortKey;
-                    if (!inlSortKey || inlSortKey === "0") {
-                        inlSortKey = generateKeyBetween(lastValidInlineSortKey, null);
-                    }
-                    lastValidInlineSortKey = inlSortKey;
-                    
-                    if (inl.symbolType) {
-                        const sym = factory.createInlineSymbol({ type: inl.symbolType, emoji: inl.emoji }, inl.id);
-                        sym.sortKey = inlSortKey;
-                        return sym;
-                    } else {
-                        const textInl = factory.createInlineText(inl.id);
-                        textInl.content = inl.content || "";
-                        textInl.bold = inl.bold || false;
-                        textInl.italic = inl.italic || false;
-                        textInl.underline = inl.underline || false;
-                        textInl.strikethrough = inl.strikethrough || false;
-                        textInl.code = inl.code || false;
-                        textInl.sortKey = inlSortKey;
-                        return textInl;
-                    }
-                });
-
-                if (block.inlines.length === 0) {
-                    const emptyInl = factory.createInlineText();
-                    emptyInl.content = "";
-                    block.inlines = [emptyInl];
-                }
+                lastValidBlockSortKey = block.sortKey;
 
                 return block;
             });
@@ -81,11 +37,11 @@
         } else {
             // First time opening an empty page - initialize a title block
             const titleBlock = factory.createTextBlock();
-            (titleBlock as any).variant = "h1";
-            (titleBlock as any).sortKey = "a0"; // Default starting key
+            titleBlock.variant = "h1";
+            titleBlock.sortKey = "a0"; // Default starting key
             const emptyInl = factory.createInlineText();
             emptyInl.content = "";
-            (emptyInl as any).sortKey = "a0";
+            emptyInl.sortKey = "a0";
             titleBlock.inlines = [emptyInl];
             p.setBlocks([titleBlock]);
         }
@@ -152,67 +108,13 @@
         // Handle updates and insertions
         if (payload.modifiedBlocks && payload.modifiedBlocks.length > 0) {
             for (const dbBlock of payload.modifiedBlocks) {
-                let block = page.blocks.find(b => b.id === dbBlock.id);
-                let isNew = false;
+                let existingBlockIdx = page.blocks.findIndex(b => b.id === dbBlock.id);
+                const block = factory.fromObject(dbBlock);
                 
-                if (!block) {
-                    block = factory.createTextBlock(dbBlock.id);
-                    isNew = true;
-                }
-                
-                // Assert it as any so we can assign dynamic properties smoothly
-                const anyBlock = block as any;
-
-                anyBlock.variant = dbBlock.variant;
-                anyBlock.indentLevel = dbBlock.indentLevel;
-                if (dbBlock.listType) {
-                    anyBlock.listType = dbBlock.listType;
-                    if (dbBlock.listStyle) {
-                        anyBlock.listStyle = { ...dbBlock.listStyle };
-                    } else {
-                        // Fallback in case it's a DB record format
-                        anyBlock.listStyle = {
-                            type: dbBlock.listStyleType,
-                            prefix: dbBlock.listStylePrefix,
-                            suffix: dbBlock.listStyleSuffix,
-                            variant: dbBlock.listStyleVariant
-                        };
-                    }
+                if (existingBlockIdx !== -1) {
+                    page.blocks[existingBlockIdx] = block;
                 } else {
-                    anyBlock.listType = null;
-                    anyBlock.listStyle = null;
-                }
-                anyBlock.sortKey = dbBlock.sortKey && dbBlock.sortKey !== "0" ? dbBlock.sortKey : generateKeyBetween(null, null);
-
-                const inlines = Array.isArray(dbBlock.inlines) ? dbBlock.inlines : (Array.isArray(dbBlock.content) ? dbBlock.content : []);
-                
-                anyBlock.inlines = inlines.map((inl: any) => {
-                    let inlSortKey = inl.sortKey && inl.sortKey !== "0" ? inl.sortKey : generateKeyBetween(null, null);
-                    if (inl.symbolType) {
-                        const sym = factory.createInlineSymbol({ type: inl.symbolType, emoji: inl.emoji }, inl.id);
-                        sym.sortKey = inlSortKey;
-                        return sym;
-                    } else {
-                        const textInl = factory.createInlineText(inl.id);
-                        textInl.content = inl.content || "";
-                        textInl.bold = inl.bold || false;
-                        textInl.italic = inl.italic || false;
-                        textInl.underline = inl.underline || false;
-                        textInl.strikethrough = inl.strikethrough || false;
-                        textInl.code = inl.code || false;
-                        textInl.sortKey = inlSortKey;
-                        return textInl;
-                    }
-                });
-
-                if (anyBlock.inlines.length === 0) {
-                    const emptyInl = factory.createInlineText();
-                    emptyInl.content = "";
-                    anyBlock.inlines = [emptyInl];
-                }
-
-                if (isNew) {
-                    page.blocks.push(block!);
+                    page.blocks.push(block);
                 }
             }
             
