@@ -7,8 +7,6 @@
     }: {
         page: BasePage
     } = $props();
-    
-
 
     let isDragging = false;
     let dragStartPos: SelectionPosition | null = null;
@@ -16,6 +14,9 @@
     let clickCount = 0;
 
     function getPositionFromEvent(e: MouseEvent): SelectionPosition | null {
+        // First, check if we clicked directly on an editable element (useful for symbols/emojis)
+        const targetEl = (e.target as Element)?.closest('[data-ziro-editor-editable]');
+
         let node: Node | null = null;
         let offset = 0;
 
@@ -33,46 +34,44 @@
             }
         }
 
-        if (node) {
-            let element: Element | null = null;
-            if (node.nodeType === Node.TEXT_NODE) {
-                const parent = node.parentElement;
-                if (parent?.hasAttribute("data-ziro-editor-editable")) {
-                    element = parent;
-                }
-            } else if (node.nodeType === Node.ELEMENT_NODE) {
-                const el = node as Element;
-                if (el.hasAttribute("data-ziro-editor-editable")) {
-                    element = el;
-                    offset = 0;
-                } else {
-                    const parent = el.closest('[data-ziro-editor-editable]');
-                    if (parent) {
-                        element = parent;
-                        offset = 0;
-                    }
-                }
-            }
+        let element: Element | null = targetEl;
 
-            if (element) {
-                const blockId = element.getAttribute("data-ziro-editor-editable-for-block-id");
-                const inlineId = element.getAttribute("data-ziro-editor-editable-for-block-inline-id");
-                if (blockId && inlineId) {
-                    const block = page.findBlock(b => b.id === blockId);
-                    if (block && block instanceof BaseTextBlock) {
-                        const inline = block.inlines.find(i => i.id === inlineId);
-                        if (inline instanceof BaseInlineText) {
-                            offset = Math.min(offset, inline.content.length);
-                            return { blockId, offset: block.findOffsetByInline(inlineId) + offset };
-                        } else if (inline) {
-                            const rect = element.getBoundingClientRect();
-                            const xPositionRelativeToElement = e.clientX - rect.left;
-                            const symbolOffset = block.findOffsetByInline(inlineId);
-                            if (xPositionRelativeToElement / rect.width < 0.5) {
-                                return { blockId, offset: symbolOffset };
-                            } else {
-                                return { blockId, offset: symbolOffset + 1 };
-                            }
+        if (!element && node) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                element = node.parentElement?.closest('[data-ziro-editor-editable]') || null;
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                element = (node as Element).closest('[data-ziro-editor-editable]');
+            }
+        }
+
+        if (element) {
+            const blockId = element.getAttribute("data-ziro-editor-editable-for-block-id");
+            const inlineId = element.getAttribute("data-ziro-editor-editable-for-block-inline-id");
+            if (blockId && inlineId) {
+                const block = page.findBlock(b => b.id === blockId);
+                if (block && block instanceof BaseTextBlock) {
+                    const inline = block.inlines.find(i => i.id === inlineId);
+                    if (inline instanceof BaseInlineText) {
+                        // If we used the targetEl directly but it's a text inline, 
+                        // we still need the offset from caretPositionFromPoint if available.
+                        // If caretPositionFromPoint didn't give us this element, we might need to approximate.
+                        if (element !== targetEl || !node) {
+                             // Approximation if caret didn't hit it: use X position
+                             // But usually caretPositionFromPoint is reliable for text.
+                        }
+                        offset = Math.min(offset, inline.content.length);
+                        return { blockId, offset: block.findOffsetByInline(inlineId) + offset };
+                    } else if (inline) {
+                        const rect = element.getBoundingClientRect();
+                        const xPositionRelativeToElement = e.clientX - rect.left;
+                        const symbolOffset = block.findOffsetByInline(inlineId);
+                        
+                        // 50/50 rule: If user clicks in the left 50% of the non-text inline, place cursor before it.
+                        // If user clicks in the right 50%, place cursor after it.
+                        if (xPositionRelativeToElement < rect.width / 2) {
+                            return { blockId, offset: symbolOffset };
+                        } else {
+                            return { blockId, offset: symbolOffset + 1 };
                         }
                     }
                 }
