@@ -61,17 +61,19 @@ export class ServerBaseInlineSymbol extends BaseInlineSymbol {
     }
 }
 
+import { v4 as uuidv4 } from 'uuid';
+
 export class ServerFactory implements DocumentFactory {
     createPage(): BasePage {
         return new ServerPage(this);
     }
     createTextBlock(id?: string): BaseTextBlock {
-        return new ServerBaseTextBlock(id || crypto.randomUUID());
+        return new ServerBaseTextBlock(id || uuidv4());
     }
     createInlineText(id?: string): BaseInlineText {
-        return new ServerBaseInlineText(id || crypto.randomUUID());
+        return new ServerBaseInlineText(id || uuidv4());
     }
     createInlineSymbol(symbol: BaseInlineSymbolVariant, id?: string): BaseInlineSymbol {
-        return new ServerBaseInlineSymbol(id || crypto.randomUUID(), symbol);
+        return new ServerBaseInlineSymbol(id || uuidv4(), symbol);
     }
 }

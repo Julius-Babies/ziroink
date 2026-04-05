@@ -10,6 +10,7 @@
     import BottomWhitespace from "$lib/ziro/editor/BottomWhitespace.svelte";
     import SelectionManager from "$lib/ziro/editor/SelectionManager.svelte";
     import { onMount } from "svelte";
+    import { v4 as uuidv4 } from "uuid";
 
     let { data } = $props();
 
@@ -93,7 +94,7 @@
         return p;
     }
 
-    let clientId = crypto.randomUUID();
+    let clientId: string = "";
 
     let page = $state(loadPageFromDB());
     let keyboardHandler: KeyboardHandler | null = $state(null);
@@ -101,7 +102,7 @@
     let isSyncing = $state(false);
 
     async function syncChanges() {
-        if (isSyncing || page.eventQueue.length === 0) return;
+        if (!clientId || isSyncing || page.eventQueue.length === 0) return;
         
         isSyncing = true;
         const eventsToSync = [...page.eventQueue];
@@ -166,12 +167,17 @@
                 anyBlock.indentLevel = dbBlock.indentLevel;
                 if (dbBlock.listType) {
                     anyBlock.listType = dbBlock.listType;
-                    anyBlock.listStyle = {
-                        type: dbBlock.listStyleType,
-                        prefix: dbBlock.listStylePrefix,
-                        suffix: dbBlock.listStyleSuffix,
-                        variant: dbBlock.listStyleVariant
-                    };
+                    if (dbBlock.listStyle) {
+                        anyBlock.listStyle = { ...dbBlock.listStyle };
+                    } else {
+                        // Fallback in case it's a DB record format
+                        anyBlock.listStyle = {
+                            type: dbBlock.listStyleType,
+                            prefix: dbBlock.listStylePrefix,
+                            suffix: dbBlock.listStyleSuffix,
+                            variant: dbBlock.listStyleVariant
+                        };
+                    }
                 } else {
                     anyBlock.listType = null;
                     anyBlock.listStyle = null;
@@ -217,7 +223,9 @@
 
     let eventSource: EventSource | null = null;
 
-    onMount(() => {
+    $effect(() => {
+        if (!data.page.id) return;
+        clientId = uuidv4();
         keyboardHandler = new KeyboardHandler(page);
         const interval = setInterval(syncChanges, 500);
 
@@ -235,7 +243,7 @@
             clearInterval(interval);
             eventSource?.close();
         };
-    });
+    })
 
 </script>
 
@@ -249,6 +257,7 @@
 <div class="w-full h-full flex flex-row bg-white overflow-x-clip">
 
     <div
+            spellcheck="false"
             class="h-full flex-1 flex flex-col overflow-y-auto px-12 py-8 pt-16"
             role="textbox"
             tabindex="-1"

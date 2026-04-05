@@ -32,6 +32,10 @@ export abstract class BaseTextBlock implements Block {
     }
 
     findInlineAtOffset(offset: number): { inline: BaseInline, offsetInInline: number } {
+        if (this.inlines.length === 0) {
+            throw new Error(`Failed to findInlineAtOffset: Block ${this.id} has no inlines.`);
+        }
+
         let remaining = offset;
         for (let i = 0; i < this.inlines.length; i++) {
             const inline = this.inlines[i];
@@ -40,13 +44,14 @@ export abstract class BaseTextBlock implements Block {
             if (remaining <= inlineContentLength) {
                 return {inline, offsetInInline: remaining};
             }
-            if (remaining === inlineContentLength && i === this.inlines.length - 1) {
-                return {inline, offsetInInline: remaining};
-            }
             remaining -= inlineContentLength;
         }
 
-        throw new Error("Failed to findInlineAtOffset");
+        // If we exhausted the loop, the offset was larger than the block content.
+        // Cap it to the end of the last inline instead of crashing.
+        const lastInline = this.inlines[this.inlines.length - 1];
+        const lastLength = lastInline instanceof BaseInlineText ? lastInline.content.length : 1;
+        return {inline: lastInline, offsetInInline: lastLength};
     }
 
     findOffsetByInline(inlineId: string): number {
@@ -61,7 +66,7 @@ export abstract class BaseTextBlock implements Block {
             return result;
         }
 
-        throw new Error("Failed to findOffsetByInline");
+        return result;
     }
 
     getContentLength(): number {

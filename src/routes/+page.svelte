@@ -1,35 +1,36 @@
 <script lang="ts">
     import {JsonView} from "@zerodevx/svelte-json-view";
     import {ClientFactory} from "$lib/ziro/client/ClientModels.svelte";
-    import type {BasePage} from "$lib/ziro/BasePage";
-    import {BaseInlineSymbol, type BaseInlineSymbolVariant, BaseInlineText, BaseTextBlock} from "$lib/ziro/BaseTextBlock";
+    import {BaseInlineSymbol, type BaseInlineSymbolVariant, BaseInlineText} from "$lib/ziro/BaseTextBlock";
     import BottomWhitespace from "$lib/ziro/editor/BottomWhitespace.svelte";
     import BlockRenderer from "$lib/ziro/editor/BlockRenderer.svelte";
     import SelectionManager from "$lib/ziro/editor/SelectionManager.svelte";
     import {KeyboardHandler} from "$lib/ziro/editor/keyboard/KeyboardHandler";
     import {onMount} from "svelte";
-    import { authClient } from "$lib/client";
+    import {authClient} from "$lib/client";
     import {Tabs, TabsList, TabsTrigger} from "$lib/components/ui/tabs";
     import Login from "$lib/components/Login.svelte";
-    import { generateKeyBetween } from "fractional-indexing";
+    import {generateKeyBetween} from "fractional-indexing";
+
+    import {v4 as uuidv4} from 'uuid';
 
     function createSamplePage() {
         const factory = new ClientFactory();
         const p = factory.createPage();
 
         function createText(content: string, styles: Partial<BaseInlineText> = {}) {
-            const inline = factory.createInlineText(crypto.randomUUID());
+            const inline = factory.createInlineText(uuidv4());
             inline.content = content;
             Object.assign(inline, styles);
             return inline;
         }
 
         function createSymbol(symbol: BaseInlineSymbolVariant): BaseInlineSymbol {
-            return factory.createInlineSymbol(symbol);
+            return factory.createInlineSymbol(symbol, uuidv4());
         }
 
         function createBlock(variant: any, inlines: (BaseInlineText | BaseInlineSymbol)[], options: any = {}) {
-            const block = factory.createTextBlock(crypto.randomUUID());
+            const block = factory.createTextBlock(uuidv4());
             (block as any).variant = variant;
             block.inlines = inlines.length > 0 ? inlines : [createText("")];
             (block as any).indentLevel = options.indent || 0;

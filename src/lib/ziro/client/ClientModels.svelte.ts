@@ -61,17 +61,19 @@ export class ClientBaseInlineSymbol extends BaseInlineSymbol {
     }
 }
 
+import { v4 as uuidv4 } from 'uuid';
+
 export class ClientFactory implements DocumentFactory {
     createPage(): BasePage {
         return new ClientPage(this);
     }
     createTextBlock(id?: string): BaseTextBlock {
-        return new ClientBaseTextBlock(id || crypto.randomUUID());
+        return new ClientBaseTextBlock(id || uuidv4());
     }
     createInlineText(id?: string): BaseInlineText {
-        return new ClientBaseInlineText(id || crypto.randomUUID());
+        return new ClientBaseInlineText(id || uuidv4());
     }
     createInlineSymbol(symbol: BaseInlineSymbolVariant, id?: string): BaseInlineSymbol {
-        return new ClientBaseInlineSymbol(id || crypto.randomUUID(), symbol);
+        return new ClientBaseInlineSymbol(id || uuidv4(), symbol);
     }
 }

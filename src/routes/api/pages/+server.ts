@@ -1,7 +1,7 @@
 import { pubsub } from '$lib/server/events';
 import { db } from '$lib/server/db';
 import { page } from '$lib/server/db/schema';
-import crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import { json, type RequestEvent } from '@sveltejs/kit';
 
 export async function POST({ request, locals }: RequestEvent) {
@@ -18,7 +18,7 @@ export async function POST({ request, locals }: RequestEvent) {
     }
 
     const newPage = {
-        id: crypto.randomUUID(),
+        id: uuidv4(),
         ownerId: locals.user.id,
         parentId,
         createdAt: new Date(),

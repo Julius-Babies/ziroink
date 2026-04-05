@@ -647,6 +647,11 @@ export abstract class BasePage {
         this.emit({ type: "text_inserted", blockId: position.blockId, offset: position.offset, text });
     }
 
+    deleteBlock(blockId: string) {
+        this.blocks = this.blocks.filter(b => b.id !== blockId);
+        this.emit({ type: "block_deleted", blockId });
+    }
+
     deleteContent(start: SelectionPosition, end: SelectionPosition) {
         const startBlock = this.blocks.find(block => block.id === start.blockId);
         const endBlock = this.blocks.find(block => block.id === end.blockId);
@@ -681,10 +686,18 @@ export abstract class BasePage {
                         ...startBlock.inlines.slice(0, startIdx + (keepStart ? 1 : 0)),
                         ...startBlock.inlines.slice(endIdx + (keepEnd ? 0 : 1)),
                     ];
+                }
+                
+                if (startBlock.inlines.length === 0) {
+                    const emptyInline = this.factory.createInlineText();
+                    emptyInline.sortKey = generateKeyBetween(null, null);
+                    startBlock.inlines = [emptyInline];
+                } else {
                     startBlock._mergeAdjacentBaseInlines();
                 }
             } else {
                 this.blocks = this.blocks.filter(b => b.id !== startBlock.id);
+                this.emit({ type: "block_deleted", blockId: startBlock.id });
             }
             this.emit({
                 type: "text_deleted",
@@ -728,6 +741,10 @@ export abstract class BasePage {
         const endIndex = this.blocks.findIndex(b => b.id === end.blockId);
 
         if (endIndex - startIndex > 1) {
+            const blocksToRemove = this.blocks.slice(startIndex + 1, endIndex);
+            for (const b of blocksToRemove) {
+                this.emit({ type: "block_deleted", blockId: b.id });
+            }
             this.blocks = [
                 ...this.blocks.slice(0, startIndex + 1),
                 ...this.blocks.slice(endIndex),
@@ -741,10 +758,20 @@ export abstract class BasePage {
                 prevKey = inl.sortKey;
             }
             startBlock.inlines = [...startBlock.inlines, ...endBlock.inlines];
-            startBlock._mergeAdjacentBaseInlines();
+            
+            if (startBlock.inlines.length === 0) {
+                const emptyInline = this.factory.createInlineText();
+                emptyInline.sortKey = generateKeyBetween(null, null);
+                startBlock.inlines = [emptyInline];
+            } else {
+                startBlock._mergeAdjacentBaseInlines();
+            }
+            
             this.blocks = this.blocks.filter(b => b.id !== endBlock.id);
+            this.emit({ type: "block_deleted", blockId: endBlock.id });
         } else if (!(startBlock instanceof BaseTextBlock)) {
             this.blocks = this.blocks.filter(b => b.id !== startBlock.id);
+            this.emit({ type: "block_deleted", blockId: startBlock.id });
         }
 
         this.emit({
