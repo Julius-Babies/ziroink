@@ -41,14 +41,18 @@ export abstract class BaseTextBlock implements Block {
             const inline = this.inlines[i];
             const inlineContentLength = inline instanceof BaseInlineText ? inline.content.length : 1;
 
-            if (remaining <= inlineContentLength) {
+            // If we have remaining offset left in this inline, we belong here.
+            // If we are at the EXACT end of this inline (remaining === inlineContentLength):
+            // 1. If it's the LAST inline, we must return this.
+            // 2. If it's a TEXT inline, we prefer to stay at the end of it for a more stable caret
+            //    rather than jumping to offset 0 of the next inline (which might be a symbol).
+            if (remaining < inlineContentLength || (remaining === inlineContentLength && (i === this.inlines.length - 1 || inline instanceof BaseInlineText))) {
                 return {inline, offsetInInline: remaining};
             }
+
             remaining -= inlineContentLength;
         }
 
-        // If we exhausted the loop, the offset was larger than the block content.
-        // Cap it to the end of the last inline instead of crashing.
         const lastInline = this.inlines[this.inlines.length - 1];
         const lastLength = lastInline instanceof BaseInlineText ? lastInline.content.length : 1;
         return {inline: lastInline, offsetInInline: lastLength};

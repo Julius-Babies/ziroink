@@ -248,44 +248,53 @@
 
         let { inline, offsetInInline } = block.findInlineAtOffset(pos.offset);
         
+        const inlineIndex = block.inlines.findIndex(i => i.id === inline.id);
+
+        // Preference: If we are at the end of a text inline (offsetInInline === content.length),
+        // we prefer staying in that text inline rather than jumping to the next inline's start.
+        // This is more stable for the browser caret.
+        // findInlineAtOffset returns offsetInInline <= length.
+        
         if (inline instanceof BaseInlineText) {
             const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
             if (!inlineEditable) return null;
 
-            const anchorNode = inlineEditable.childNodes.item(0);
-            if (!anchorNode) return null;
+            let anchorNode: Node | null = null;
+            for (let i = 0; i < inlineEditable.childNodes.length; i++) {
+                if (inlineEditable.childNodes[i].nodeType === Node.TEXT_NODE) {
+                    anchorNode = inlineEditable.childNodes[i];
+                    break;
+                }
+            }
+            
+            if (!anchorNode) {
+                return { node: inlineEditable, offset: 0 };
+            }
 
-            return { node: anchorNode, offset: offsetInInline };
+            return { node: anchorNode, offset: Math.min(offsetInInline, (anchorNode as Text).length) };
         } else if (inline instanceof BaseInlineSymbol) {
+            // If we are at offset 1 of a symbol, it means the cursor is AFTER the symbol.
+            // If the next inline is text, we should ideally place the cursor at offset 0 of that text.
+            if (offsetInInline === 1 && inlineIndex < block.inlines.length - 1) {
+                const next = block.inlines[inlineIndex + 1];
+                if (next instanceof BaseInlineText) {
+                    const nextEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${next.id}"]`) as HTMLElement;
+                    if (nextEditable) {
+                        let nextNode: Node | null = null;
+                        for (let i = 0; i < nextEditable.childNodes.length; i++) {
+                            if (nextEditable.childNodes[i].nodeType === Node.TEXT_NODE) {
+                                nextNode = nextEditable.childNodes[i];
+                                break;
+                            }
+                        }
+                        if (nextNode) return { node: nextNode, offset: 0 };
+                    }
+                }
+            }
+
             const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
             if (!inlineEditable) return null;
             return { node: inlineEditable, offset: offsetInInline };
-        }
-
-        const inlineIndex = block.inlines.findIndex(i => i.id === inline.id);
-        if (offsetInInline === 0 && inlineIndex > 0) {
-            const prev = block.inlines[inlineIndex - 1];
-            if (prev instanceof BaseInlineText) {
-                const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${prev.id}"]`) as HTMLElement;
-                if (inlineEditable && inlineEditable.childNodes.item(0)) {
-                    return { node: inlineEditable.childNodes.item(0), offset: prev.content.length };
-                }
-            } else if (prev instanceof BaseInlineSymbol) {
-                const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${prev.id}"]`) as HTMLElement;
-                if (inlineEditable) return { node: inlineEditable, offset: 1 };
-            }
-        }
-        if (inlineIndex < block.inlines.length - 1) {
-            const next = block.inlines[inlineIndex + 1];
-            if (next instanceof BaseInlineText) {
-                const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${next.id}"]`) as HTMLElement;
-                if (inlineEditable && inlineEditable.childNodes.item(0)) {
-                    return { node: inlineEditable.childNodes.item(0), offset: 0 };
-                }
-            } else if (next instanceof BaseInlineSymbol) {
-                const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${next.id}"]`) as HTMLElement;
-                if (inlineEditable) return { node: inlineEditable, offset: 0 };
-            }
         }
 
         return null;
@@ -469,7 +478,9 @@
         if (!startDOM) return;
 
         if (!page.selection.end) {
-            selection.setPosition(startDOM.node, startDOM.offset);
+            // Use setBaseAndExtent instead of setPosition to avoid focus issues 
+            // and ensure the range is correctly recognized by the browser for caret rendering.
+            selection.setBaseAndExtent(startDOM.node, startDOM.offset, startDOM.node, startDOM.offset);
             selectionRects = [];
         } else {
             const endDOM = getDomNodeAndOffsetForPosition(page.selection.end);
