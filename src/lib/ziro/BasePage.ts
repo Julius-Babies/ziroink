@@ -1,5 +1,7 @@
+import { generateKeyBetween } from "fractional-indexing";
 import type {Block} from "$lib/ziro/Block";
-import {Inline, InlineText, type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte";
+import {type BaseInline, BaseInlineText, type ListStyle, BaseTextBlock, BaseInlineSymbol} from "$lib/ziro/BaseTextBlock";
+import type { DocumentFactory } from "$lib/ziro/DocumentFactory";
 import type {BlockInsertPosition, PageEvent, StyleType} from "$lib/ziro/Events";
 
 export type Selection = {
@@ -16,11 +18,12 @@ export function isNonCollapsedSelection(selection: null | Selection): selection 
     return selection !== null && selection.end !== null;
 }
 
-export class Page {
-    blocks: Block[] = $state([])
-    selection: null | Selection = $state(null);
-    cursorXPosition: number | null = $state(null);
-    eventQueue: PageEvent[] = $state([]);
+export abstract class BasePage {
+    abstract blocks: Block[];
+    abstract selection: null | Selection;
+    abstract cursorXPosition: number | null;
+    abstract eventQueue: PageEvent[];
+    abstract factory: DocumentFactory;
 
     private subscribers: ((event: PageEvent) => void)[] = [];
 
@@ -44,7 +47,7 @@ export class Page {
 
     updateBlockIndent(blockId: string, delta: number) {
         const block = this.blocks.find(b => b.id === blockId);
-        if (block && block instanceof TextBlock) {
+        if (block && block instanceof BaseTextBlock) {
             const oldIndent = block.indentLevel;
             block.indentLevel = Math.max(0, Math.min(4, block.indentLevel + delta));
             this.emit({
@@ -58,7 +61,7 @@ export class Page {
 
     updateBlockList(blockId: string, listType: "unordered" | "ordered" | null, listStyle: ListStyle | null) {
         const block = this.blocks.find(b => b.id === blockId);
-        if (block && block instanceof TextBlock) {
+        if (block && block instanceof BaseTextBlock) {
             const oldListType = block.listType;
             const oldListStyle = block.listStyle;
             block.listType = listType;
@@ -79,7 +82,7 @@ export class Page {
 
     updateBlockVariant(blockId: string, variant: "paragraph" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
         const block = this.blocks.find(b => b.id === blockId);
-        if (block && block instanceof TextBlock) {
+        if (block && block instanceof BaseTextBlock) {
             const oldVariant = block.variant;
             block.variant = variant;
             this.emit({
@@ -120,11 +123,11 @@ export class Page {
         }
 
         const block = this.blocks[blockIndex];
-        if (!(block instanceof TextBlock)) {
+        if (!(block instanceof BaseTextBlock)) {
             throw new Error("Cannot split non-text block");
         }
 
-        const newBlock = new TextBlock(crypto.randomUUID());
+        const newBlock = this.factory.createTextBlock();
         newBlock.indentLevel = block.indentLevel;
         newBlock.listType = block.listType;
         newBlock.listStyle = block.listStyle;
@@ -132,35 +135,35 @@ export class Page {
         const inlineAtCursor = block.findInlineAtOffset(offset);
         const inlineIndex = block.inlines.indexOf(inlineAtCursor.inline);
 
-        if (inlineAtCursor.inline instanceof InlineText) {
+        if (inlineAtCursor.inline instanceof BaseInlineText) {
             const textBeforeCursor = inlineAtCursor.inline.content.slice(0, inlineAtCursor.offsetInInline);
             const textAfterCursor = inlineAtCursor.inline.content.slice(inlineAtCursor.offsetInInline);
 
             if (textAfterCursor !== "") {
-                const newInline = new InlineText(crypto.randomUUID());
-                newInline.content = textAfterCursor;
-                InlineText.prototype.isSameStyleAs.call(newInline, inlineAtCursor.inline);
-                newInline.bold = (inlineAtCursor.inline as InlineText).bold;
-                newInline.italic = (inlineAtCursor.inline as InlineText).italic;
-                newInline.underline = (inlineAtCursor.inline as InlineText).underline;
-                newInline.strikethrough = (inlineAtCursor.inline as InlineText).strikethrough;
-                newInline.code = (inlineAtCursor.inline as InlineText).code;
-                newBlock.inlines = [...newBlock.inlines, newInline];
+                const newBaseInline = this.factory.createInlineText();
+                newBaseInline.content = textAfterCursor;
+                BaseInlineText.prototype.isSameStyleAs.call(newBaseInline, inlineAtCursor.inline);
+                newBaseInline.bold = (inlineAtCursor.inline as BaseInlineText).bold;
+                newBaseInline.italic = (inlineAtCursor.inline as BaseInlineText).italic;
+                newBaseInline.underline = (inlineAtCursor.inline as BaseInlineText).underline;
+                newBaseInline.strikethrough = (inlineAtCursor.inline as BaseInlineText).strikethrough;
+                newBaseInline.code = (inlineAtCursor.inline as BaseInlineText).code;
+                newBlock.inlines = [...newBlock.inlines, newBaseInline];
             }
 
             newBlock.inlines = [...newBlock.inlines, ...block.inlines.slice(inlineIndex + 1)];
             block.inlines = block.inlines.slice(0, inlineIndex + 1);
-            (inlineAtCursor.inline as InlineText).content = textBeforeCursor;
+            (inlineAtCursor.inline as BaseInlineText).content = textBeforeCursor;
         } else {
             newBlock.inlines = [...block.inlines.slice(inlineIndex + 1)];
             block.inlines = block.inlines.slice(0, inlineIndex + 1);
         }
 
         if (newBlock.inlines.length === 0) {
-            newBlock.inlines = [new InlineText(crypto.randomUUID())];
+            newBlock.inlines = [this.factory.createInlineText()];
         }
 
-        block._mergeAdjacentInlines();
+        block._mergeAdjacentBaseInlines();
 
         this.blocks = [...this.blocks.slice(0, blockIndex + 1), newBlock, ...this.blocks.slice(blockIndex + 1)];
 
@@ -187,13 +190,13 @@ export class Page {
             throw new Error("Failed to find source block with id " + sourceBlockId);
         }
 
-        if (!(targetBlock instanceof TextBlock) || !(sourceBlock instanceof TextBlock)) {
+        if (!(targetBlock instanceof BaseTextBlock) || !(sourceBlock instanceof BaseTextBlock)) {
             throw new Error("Can only merge text blocks");
         }
 
         const targetContentLength = targetBlock.getContentLength();
         targetBlock.inlines = [...targetBlock.inlines, ...sourceBlock.inlines];
-        targetBlock._mergeAdjacentInlines();
+        targetBlock._mergeAdjacentBaseInlines();
 
         this.blocks = this.blocks.filter(b => b.id !== sourceBlockId);
 
@@ -207,50 +210,50 @@ export class Page {
     }
 
     createEmptyBlockAtEnd(): string {
-        const block = new TextBlock(crypto.randomUUID());
-        const inline = new InlineText(crypto.randomUUID());
+        const block = this.factory.createTextBlock();
+        const inline = this.factory.createInlineText();
         inline.content = "";
         block.inlines = [inline];
         this.insertBlock(block, { type: "end" });
         return block.id;
     }
 
-    insertInlinesIntoBlock(blockId: string, inlines: Inline[], atOffset: number) {
+    insertBaseInlinesIntoBlock(blockId: string, inlines: BaseInline[], atOffset: number) {
         const block = this.blocks.find(b => b.id === blockId);
-        if (!block || !(block instanceof TextBlock)) return;
+        if (!block || !(block instanceof BaseTextBlock)) return;
 
         const oldInlines = block.inlines.map(i => ({ id: i.id }));
 
-        const { inline: targetInline, offsetInInline } = block.findInlineAtOffset(atOffset);
-        const targetIndex = block.inlines.indexOf(targetInline);
+        const { inline: targetBaseInline, offsetInInline } = block.findInlineAtOffset(atOffset);
+        const targetIndex = block.inlines.indexOf(targetBaseInline);
 
-        if (targetInline instanceof InlineText) {
-            const textBefore = targetInline.content.substring(0, offsetInInline);
-            const textAfter = targetInline.content.substring(offsetInInline);
+        if (targetBaseInline instanceof BaseInlineText) {
+            const textBefore = targetBaseInline.content.substring(0, offsetInInline);
+            const textAfter = targetBaseInline.content.substring(offsetInInline);
 
-            const newInlines: Inline[] = [];
+            const newInlines: BaseInline[] = [];
             if (textBefore.length > 0) {
-                const beforeInline = new InlineText(crypto.randomUUID());
-                beforeInline.content = textBefore;
-                beforeInline.bold = (targetInline as InlineText).bold;
-                beforeInline.italic = (targetInline as InlineText).italic;
-                beforeInline.underline = (targetInline as InlineText).underline;
-                beforeInline.strikethrough = (targetInline as InlineText).strikethrough;
-                beforeInline.code = (targetInline as InlineText).code;
-                newInlines.push(beforeInline);
+                const beforeBaseInline = this.factory.createInlineText();
+                beforeBaseInline.content = textBefore;
+                beforeBaseInline.bold = (targetBaseInline as BaseInlineText).bold;
+                beforeBaseInline.italic = (targetBaseInline as BaseInlineText).italic;
+                beforeBaseInline.underline = (targetBaseInline as BaseInlineText).underline;
+                beforeBaseInline.strikethrough = (targetBaseInline as BaseInlineText).strikethrough;
+                beforeBaseInline.code = (targetBaseInline as BaseInlineText).code;
+                newInlines.push(beforeBaseInline);
             }
 
             newInlines.push(...inlines);
 
             if (textAfter.length > 0) {
-                const afterInline = new InlineText(crypto.randomUUID());
-                afterInline.content = textAfter;
-                afterInline.bold = (targetInline as InlineText).bold;
-                afterInline.italic = (targetInline as InlineText).italic;
-                afterInline.underline = (targetInline as InlineText).underline;
-                afterInline.strikethrough = (targetInline as InlineText).strikethrough;
-                afterInline.code = (targetInline as InlineText).code;
-                newInlines.push(afterInline);
+                const afterBaseInline = this.factory.createInlineText();
+                afterBaseInline.content = textAfter;
+                afterBaseInline.bold = (targetBaseInline as BaseInlineText).bold;
+                afterBaseInline.italic = (targetBaseInline as BaseInlineText).italic;
+                afterBaseInline.underline = (targetBaseInline as BaseInlineText).underline;
+                afterBaseInline.strikethrough = (targetBaseInline as BaseInlineText).strikethrough;
+                afterBaseInline.code = (targetBaseInline as BaseInlineText).code;
+                newInlines.push(afterBaseInline);
             }
 
             block.inlines = [
@@ -267,7 +270,7 @@ export class Page {
             ];
         }
 
-        block._mergeAdjacentInlines();
+        block._mergeAdjacentBaseInlines();
 
         this.emit({
             type: "inlines_replaced",
@@ -324,7 +327,7 @@ export class Page {
         let allHaveStyle = true;
         for (let i = startIdx; i <= endIdx; i++) {
             const block = this.blocks[i];
-            if (!(block instanceof TextBlock)) continue;
+            if (!(block instanceof BaseTextBlock)) continue;
 
             const isFirst = i === startIdx;
             const isLast = i === endIdx;
@@ -336,16 +339,21 @@ export class Page {
             const inlineStart = block.findInlineAtOffset(startOffset);
             const inlineEnd = block.findInlineAtOffset(endOffset);
 
-            const startInlineIdx = block.inlines.findIndex(inl => inlineStart.inline.id === inl.id);
-            const endInlineIdx = block.inlines.findIndex(inl => inlineEnd.inline.id === inl.id);
+            const startBaseInlineIdx = block.inlines.findIndex(inl => inlineStart.inline.id === inl.id);
+            const endBaseInlineIdx = block.inlines.findIndex(inl => inlineEnd.inline.id === inl.id);
 
-            for (let j = startInlineIdx; j <= endInlineIdx; j++) {
-                if (j === endInlineIdx && inlineEnd.offsetInInline === 0 && j > startInlineIdx) {
+            for (let j = startBaseInlineIdx; j <= endBaseInlineIdx; j++) {
+                const inline = block.inlines[j];
+                const length = inline instanceof BaseInlineText ? inline.content.length : 1;
+
+                if (j === endBaseInlineIdx && inlineEnd.offsetInInline === 0 && j > startBaseInlineIdx) {
+                    continue;
+                }
+                if (j === startBaseInlineIdx && inlineStart.offsetInInline === length && j < endBaseInlineIdx) {
                     continue;
                 }
 
-                const inline = block.inlines[j];
-                if (inline instanceof InlineText) {
+                if (inline instanceof BaseInlineText) {
                     if (!inline[style]) {
                         allHaveStyle = false;
                         break;
@@ -359,7 +367,7 @@ export class Page {
 
         for (let i = startIdx; i <= endIdx; i++) {
             const block = this.blocks[i];
-            if (!(block instanceof TextBlock)) continue;
+            if (!(block instanceof BaseTextBlock)) continue;
 
             const isFirst = i === startIdx;
             const isLast = i === endIdx;
@@ -380,7 +388,7 @@ export class Page {
         }
     }
 
-    private applyStyleToBlockRange(block: TextBlock, startOffset: number, endOffset: number, style: StyleType, value: boolean) {
+    private applyStyleToBlockRange(block: BaseTextBlock, startOffset: number, endOffset: number, style: StyleType, value: boolean) {
         const inlineStart = block.findInlineAtOffset(startOffset);
         const inlineEnd = block.findInlineAtOffset(endOffset);
 
@@ -391,7 +399,7 @@ export class Page {
 
         for (let i = 0; i < block.inlines.length; i++) {
             const inline = block.inlines[i];
-            if (!(inline instanceof InlineText)) {
+            if (!(inline instanceof BaseInlineText)) {
                 newInlines.push(inline);
                 continue;
             }
@@ -407,20 +415,20 @@ export class Page {
                 const p3 = inline.content.substring(inlineEnd.offsetInInline);
 
                 if (p1) {
-                    const inl1 = new InlineText(crypto.randomUUID());
+                    const inl1 = this.factory.createInlineText();
                     inl1.content = p1;
                     this.copyStyles(inline, inl1);
                     newInlines.push(inl1);
                 }
                 if (p2) {
-                    const inl2 = new InlineText(crypto.randomUUID());
+                    const inl2 = this.factory.createInlineText();
                     inl2.content = p2;
                     this.copyStyles(inline, inl2);
                     inl2[style] = value;
                     newInlines.push(inl2);
                 }
                 if (p3) {
-                    const inl3 = new InlineText(crypto.randomUUID());
+                    const inl3 = this.factory.createInlineText();
                     inl3.content = p3;
                     this.copyStyles(inline, inl3);
                     newInlines.push(inl3);
@@ -430,13 +438,13 @@ export class Page {
                 const p2 = inline.content.substring(inlineStart.offsetInInline);
 
                 if (p1) {
-                    const inl1 = new InlineText(crypto.randomUUID());
+                    const inl1 = this.factory.createInlineText();
                     inl1.content = p1;
                     this.copyStyles(inline, inl1);
                     newInlines.push(inl1);
                 }
                 if (p2) {
-                    const inl2 = new InlineText(crypto.randomUUID());
+                    const inl2 = this.factory.createInlineText();
                     inl2.content = p2;
                     this.copyStyles(inline, inl2);
                     inl2[style] = value;
@@ -447,20 +455,20 @@ export class Page {
                 const p2 = inline.content.substring(inlineEnd.offsetInInline);
 
                 if (p1) {
-                    const inl1 = new InlineText(crypto.randomUUID());
+                    const inl1 = this.factory.createInlineText();
                     inl1.content = p1;
                     this.copyStyles(inline, inl1);
                     inl1[style] = value;
                     newInlines.push(inl1);
                 }
                 if (p2) {
-                    const inl2 = new InlineText(crypto.randomUUID());
+                    const inl2 = this.factory.createInlineText();
                     inl2.content = p2;
                     this.copyStyles(inline, inl2);
                     newInlines.push(inl2);
                 }
             } else {
-                const inl = new InlineText(crypto.randomUUID());
+                const inl = this.factory.createInlineText();
                 inl.content = inline.content;
                 this.copyStyles(inline, inl);
                 inl[style] = value;
@@ -469,10 +477,10 @@ export class Page {
         }
 
         block.inlines = newInlines;
-        block._mergeAdjacentInlines();
+        block._mergeAdjacentBaseInlines();
     }
 
-    private copyStyles(from: InlineText, to: InlineText) {
+    private copyStyles(from: BaseInlineText, to: BaseInlineText) {
         to.bold = from.bold;
         to.italic = from.italic;
         to.underline = from.underline;
@@ -480,26 +488,26 @@ export class Page {
         to.code = from.code;
     }
 
-    insertInlineAtOffset(blockId: string, offset: number, inline: Inline) {
+    insertInlineAtOffset(blockId: string, offset: number, inline: BaseInline) {
         const block = this.blocks.find(b => b.id === blockId);
-        if (!block || !(block instanceof TextBlock)) return;
+        if (!block || !(block instanceof BaseTextBlock)) return;
 
-        const { inline: targetInline, offsetInInline } = block.findInlineAtOffset(offset);
-        const index = block.inlines.findIndex(i => i.id === targetInline.id);
+        const { inline: targetBaseInline, offsetInInline } = block.findInlineAtOffset(offset);
+        const index = block.inlines.findIndex(i => i.id === targetBaseInline.id);
 
-        if (targetInline instanceof InlineText) {
-            const textBefore = targetInline.content.slice(0, offsetInInline);
-            const textAfter = targetInline.content.slice(offsetInInline);
+        if (targetBaseInline instanceof BaseInlineText) {
+            const textBefore = targetBaseInline.content.slice(0, offsetInInline);
+            const textAfter = targetBaseInline.content.slice(offsetInInline);
             
-            targetInline.content = textBefore;
-            const afterInline = new InlineText(crypto.randomUUID());
-            afterInline.content = textAfter;
-            this.copyStyles(targetInline, afterInline);
+            targetBaseInline.content = textBefore;
+            const afterBaseInline = this.factory.createInlineText();
+            afterBaseInline.content = textAfter;
+            this.copyStyles(targetBaseInline, afterBaseInline);
 
             block.inlines = [
                 ...block.inlines.slice(0, index + 1),
                 inline,
-                ...(textAfter ? [afterInline] : []),
+                ...(textAfter ? [afterBaseInline] : []),
                 ...block.inlines.slice(index + 1)
             ];
         } else {
@@ -519,8 +527,8 @@ export class Page {
         }
         
         const newIndex = block.inlines.findIndex(i => i.id === inline.id);
-        if (newIndex === block.inlines.length - 1 || !(block.inlines[newIndex + 1] instanceof InlineText)) {
-            block.inlines.splice(newIndex + 1, 0, new InlineText(crypto.randomUUID()));
+        if (newIndex === block.inlines.length - 1 || !(block.inlines[newIndex + 1] instanceof BaseInlineText)) {
+            block.inlines.splice(newIndex + 1, 0, this.factory.createInlineText());
         }
 
         this.emit({
@@ -533,38 +541,38 @@ export class Page {
 
     insertText(position: SelectionPosition, text: string) {
         const block = this.blocks.find(b => b.id === position.blockId);
-        if (!block || !(block instanceof TextBlock)) return;
+        if (!block || !(block instanceof BaseTextBlock)) return;
 
         if (block.inlines.length === 0) {
-            const newInline = new InlineText(crypto.randomUUID());
-            newInline.content = text;
-            block.inlines = [newInline];
+            const newBaseInline = this.factory.createInlineText();
+            newBaseInline.content = text;
+            block.inlines = [newBaseInline];
             this.emit({ type: "text_inserted", blockId: position.blockId, offset: 0, text });
             return;
         }
 
         const contentLength = block.getContentLength();
         if (position.offset === contentLength) {
-            const lastInline = block.inlines[block.inlines.length - 1];
-            if (lastInline instanceof InlineText) {
-                lastInline.content += text;
+            const lastBaseInline = block.inlines[block.inlines.length - 1];
+            if (lastBaseInline instanceof BaseInlineText) {
+                lastBaseInline.content += text;
             } else {
-                const newInline = new InlineText(crypto.randomUUID());
-                newInline.content = text;
-                block.inlines = [...block.inlines, newInline];
+                const newBaseInline = this.factory.createInlineText();
+                newBaseInline.content = text;
+                block.inlines = [...block.inlines, newBaseInline];
             }
             this.emit({ type: "text_inserted", blockId: position.blockId, offset: position.offset, text });
             return;
         }
 
         const { inline, offsetInInline } = block.findInlineAtOffset(position.offset);
-        if (inline instanceof InlineText) {
+        if (inline instanceof BaseInlineText) {
             inline.content = inline.content.substring(0, offsetInInline) + text + inline.content.slice(offsetInInline);
         } else {
-            const newInline = new InlineText(crypto.randomUUID());
-            newInline.content = text;
+            const newBaseInline = this.factory.createInlineText();
+            newBaseInline.content = text;
             const index = block.inlines.findIndex(i => i.id === inline.id);
-            block.inlines = [...block.inlines.slice(0, index), newInline, ...block.inlines.slice(index)];
+            block.inlines = [...block.inlines.slice(0, index), newBaseInline, ...block.inlines.slice(index)];
         }
 
         this.emit({ type: "text_inserted", blockId: position.blockId, offset: position.offset, text });
@@ -577,14 +585,14 @@ export class Page {
         if (!startBlock || !endBlock) return;
 
         if (start.blockId === end.blockId) {
-            if (startBlock instanceof TextBlock) {
+            if (startBlock instanceof BaseTextBlock) {
                 const inlineStart = startBlock.findInlineAtOffset(start.offset);
                 const inlineEnd = startBlock.findInlineAtOffset(end.offset);
                 const startIdx = startBlock.inlines.findIndex(i => i.id === inlineStart.inline.id);
                 const endIdx = startBlock.inlines.findIndex(i => i.id === inlineEnd.inline.id);
 
                 if (startIdx === endIdx) {
-                    if (inlineStart.inline instanceof InlineText) {
+                    if (inlineStart.inline instanceof BaseInlineText) {
                         inlineStart.inline.content =
                             inlineStart.inline.content.substring(0, inlineStart.offsetInInline) +
                             inlineStart.inline.content.slice(inlineEnd.offsetInInline);
@@ -592,11 +600,11 @@ export class Page {
                         startBlock.inlines = startBlock.inlines.filter(i => i.id !== inlineStart.inline.id);
                     }
                 } else {
-                    const keepStart = inlineStart.inline instanceof InlineText
+                    const keepStart = inlineStart.inline instanceof BaseInlineText
                         ? (inlineStart.inline.content = inlineStart.inline.content.substring(0, inlineStart.offsetInInline), true)
                         : inlineStart.offsetInInline > 0;
 
-                    const keepEnd = inlineEnd.inline instanceof InlineText
+                    const keepEnd = inlineEnd.inline instanceof BaseInlineText
                         ? (inlineEnd.inline.content = inlineEnd.inline.content.slice(inlineEnd.offsetInInline), true)
                         : inlineEnd.offsetInInline === 0;
 
@@ -604,7 +612,7 @@ export class Page {
                         ...startBlock.inlines.slice(0, startIdx + (keepStart ? 1 : 0)),
                         ...startBlock.inlines.slice(endIdx + (keepEnd ? 0 : 1)),
                     ];
-                    startBlock._mergeAdjacentInlines();
+                    startBlock._mergeAdjacentBaseInlines();
                 }
             } else {
                 this.blocks = this.blocks.filter(b => b.id !== startBlock.id);
@@ -618,31 +626,31 @@ export class Page {
             return;
         }
 
-        if (startBlock instanceof TextBlock) {
+        if (startBlock instanceof BaseTextBlock) {
             const inlineToCut = startBlock.findInlineAtOffset(start.offset);
             const inlineToCutIndex = startBlock.inlines.findIndex(i => i.id === inlineToCut.inline.id);
-            let keepCurrentInline = true;
-            if (inlineToCut.inline instanceof InlineText) {
+            let keepCurrentBaseInline = true;
+            if (inlineToCut.inline instanceof BaseInlineText) {
                 inlineToCut.inline.content = inlineToCut.inline.content.substring(0, inlineToCut.offsetInInline);
-                keepCurrentInline = inlineToCut.inline.content.length > 0;
+                keepCurrentBaseInline = inlineToCut.inline.content.length > 0;
             } else {
-                keepCurrentInline = inlineToCut.offsetInInline > 0;
+                keepCurrentBaseInline = inlineToCut.offsetInInline > 0;
             }
-            startBlock.inlines = startBlock.inlines.slice(0, inlineToCutIndex + (keepCurrentInline ? 1 : 0));
+            startBlock.inlines = startBlock.inlines.slice(0, inlineToCutIndex + (keepCurrentBaseInline ? 1 : 0));
         }
 
-        if (endBlock instanceof TextBlock) {
+        if (endBlock instanceof BaseTextBlock) {
             const inlineToCut = endBlock.findInlineAtOffset(end.offset);
             const inlineToCutIndex = endBlock.inlines.findIndex(i => i.id === inlineToCut.inline.id);
-            let keepCurrentInline = true;
-            if (inlineToCut.inline instanceof InlineText) {
+            let keepCurrentBaseInline = true;
+            if (inlineToCut.inline instanceof BaseInlineText) {
                 inlineToCut.inline.content = inlineToCut.inline.content.slice(inlineToCut.offsetInInline);
-                keepCurrentInline = inlineToCut.inline.content.length > 0;
+                keepCurrentBaseInline = inlineToCut.inline.content.length > 0;
             } else {
-                keepCurrentInline = inlineToCut.offsetInInline === 0;
+                keepCurrentBaseInline = inlineToCut.offsetInInline === 0;
             }
             endBlock.inlines = [
-                ...(keepCurrentInline ? [inlineToCut.inline] : []),
+                ...(keepCurrentBaseInline ? [inlineToCut.inline] : []),
                 ...endBlock.inlines.slice(inlineToCutIndex + 1),
             ];
         }
@@ -657,11 +665,11 @@ export class Page {
             ];
         }
 
-        if (startBlock instanceof TextBlock && endBlock instanceof TextBlock) {
+        if (startBlock instanceof BaseTextBlock && endBlock instanceof BaseTextBlock) {
             startBlock.inlines = [...startBlock.inlines, ...endBlock.inlines];
-            startBlock._mergeAdjacentInlines();
+            startBlock._mergeAdjacentBaseInlines();
             this.blocks = this.blocks.filter(b => b.id !== endBlock.id);
-        } else if (!(startBlock instanceof TextBlock)) {
+        } else if (!(startBlock instanceof BaseTextBlock)) {
             this.blocks = this.blocks.filter(b => b.id !== startBlock.id);
         }
 

@@ -1,21 +1,23 @@
 <script lang="ts">
-    import {TextBlock} from "$lib/ziro/TextBlock.svelte";
-    import type {Page} from "$lib/ziro/Page.svelte";
+    import {BaseTextBlock} from "$lib/ziro/BaseTextBlock";
+    import type {BasePage} from "$lib/ziro/BasePage";
 
     let {
         block,
         page
     }: {
-        block: TextBlock,
-        page: Page
+        block: BaseTextBlock,
+        page: BasePage
     } = $props();
+    
+
 
     function getOrderedListItemIndex(): number {
         const currentIndex = page.blocks.indexOf(block);
         let count = 0;
         for (let i = currentIndex; i >= 0; i--) {
             const b = page.blocks[i];
-            if (b instanceof TextBlock) {
+            if (b instanceof BaseTextBlock) {
                 if (b.indentLevel < block.indentLevel) {
                     break;
                 }
@@ -68,15 +70,15 @@
         return style.prefix + value + style.suffix;
     }
 </script>
-{#if block.listStyle}
+{#if (block.listStyle)}
     <div class="w-8 flex content-center justify-center select-none">
-        {#if block.listStyle.type === "bullet"}
+        {#if (block.listStyle)?.type === "bullet"}
             &bullet;
-        {:else if block.listStyle.type === "dash"}
+        {:else if (block.listStyle)?.type === "dash"}
             &dash;
-        {:else if block.listStyle.type === "arrow"}
+        {:else if (block.listStyle)?.type === "arrow"}
             ->
-        {:else if block.listStyle.type === "ordered"}
+        {:else if (block.listStyle)?.type === "ordered"}
             {getOrderedMarker()}
         {/if}
     </div>

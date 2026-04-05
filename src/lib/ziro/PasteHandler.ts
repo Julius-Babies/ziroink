@@ -1,14 +1,14 @@
-import type {Page} from "$lib/ziro/Page.svelte";
-import {InlineSymbol, InlineText, type Inline, TextBlock} from "$lib/ziro/TextBlock.svelte";
-import type {ListStyle, TextBlockVariant} from "$lib/ziro/TextBlock.svelte";
+import type {BasePage} from "$lib/ziro/BasePage";
+import {BaseInlineSymbol, BaseInlineText, type BaseInline, BaseTextBlock} from "$lib/ziro/BaseTextBlock";
+import type {ListStyle, BaseTextBlockVariant} from "$lib/ziro/BaseTextBlock";
 
 function isEmoji(str: string): boolean {
     const emojiRegex = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F/u;
     return emojiRegex.test(str);
 }
 
-function parseInlineMarkdown(text: string): Inline[] {
-    const inlines: Inline[] = [];
+function parseInlineMarkdown(text: string, factory: any): BaseInline[] {
+    const inlines: BaseInline[] = [];
     let remaining = text;
 
     while (remaining.length > 0) {
@@ -45,10 +45,10 @@ function parseInlineMarkdown(text: string): Inline[] {
         if (earliestMatch) {
             if (earliestMatch.prefixLen > 0) {
                 const beforeText = remaining.slice(0, earliestMatch.prefixLen);
-                inlines.push(...segmentTextToInlines(beforeText));
+                inlines.push(...segmentTextToInlines(beforeText, factory));
             }
 
-            const styledInline = new InlineText(crypto.randomUUID());
+            const styledInline = factory.createInlineText();
             styledInline.content = earliestMatch.content;
             if (earliestMatch.type === "bold") styledInline.bold = true;
             else if (earliestMatch.type === "italic") styledInline.italic = true;
@@ -60,13 +60,13 @@ function parseInlineMarkdown(text: string): Inline[] {
 
             remaining = remaining.slice(earliestMatch.prefixLen + earliestMatch.matchStr.length);
         } else {
-            inlines.push(...segmentTextToInlines(remaining));
+            inlines.push(...segmentTextToInlines(remaining, factory));
             remaining = "";
         }
     }
 
     if (inlines.length === 0) {
-        const empty = new InlineText(crypto.randomUUID());
+        const empty = factory.createInlineText();
         empty.content = "";
         inlines.push(empty);
     }
@@ -74,8 +74,8 @@ function parseInlineMarkdown(text: string): Inline[] {
     return inlines;
 }
 
-function segmentTextToInlines(text: string): Inline[] {
-    const inlines: Inline[] = [];
+function segmentTextToInlines(text: string, factory: any): BaseInline[] {
+    const inlines: BaseInline[] = [];
     const segments = [...new Intl.Segmenter().segment(text)];
 
     let currentText = "";
@@ -84,20 +84,20 @@ function segmentTextToInlines(text: string): Inline[] {
     for (const segment of segments) {
         if (isEmoji(segment.segment)) {
             if (currentText.length > 0) {
-                const inline = new InlineText(crypto.randomUUID());
+                const inline = factory.createInlineText();
                 inline.content = currentText;
                 Object.assign(inline, currentStyles);
                 inlines.push(inline);
                 currentText = "";
             }
-            inlines.push(new InlineSymbol(crypto.randomUUID(), { type: "emoji", emoji: segment.segment }));
+            inlines.push(factory.createInlineSymbol({ type: "emoji", emoji: segment.segment }));
         } else {
             currentText += segment.segment;
         }
     }
 
     if (currentText.length > 0) {
-        const inline = new InlineText(crypto.randomUUID());
+        const inline = factory.createInlineText();
         inline.content = currentText;
         Object.assign(inline, currentStyles);
         inlines.push(inline);
@@ -108,7 +108,7 @@ function segmentTextToInlines(text: string): Inline[] {
 
 type ParsedLine = {
     text: string;
-    variant: TextBlockVariant;
+    variant: BaseTextBlockVariant;
     listType: "unordered" | "ordered" | null;
     listStyle: ListStyle | null;
 };
@@ -118,7 +118,7 @@ function parseLineToBlockInfo(line: string): ParsedLine {
     if (headingMatch) {
         return {
             text: headingMatch[2],
-            variant: `h${headingMatch[1].length}` as TextBlockVariant,
+            variant: `h${headingMatch[1].length}` as BaseTextBlockVariant,
             listType: null,
             listStyle: null,
         };
@@ -166,14 +166,14 @@ function parseLineToBlockInfo(line: string): ParsedLine {
 }
 
 export class PasteHandler {
-    page: Page;
+    page: BasePage;
 
-    constructor(page: Page) {
+    constructor(page: BasePage) {
         this.page = page;
     }
 
     fromPlaintext(plainText: string): {
-        resultingBlocks: TextBlock[];
+        resultingBlocks: BaseTextBlock[];
     } {
         const lines = plainText.split("\n\n");
         const parsedLines = lines.map(parseLineToBlockInfo);
@@ -182,12 +182,12 @@ export class PasteHandler {
         const currentBlock = this.page.selection?.start.blockId
             ? this.page.findBlock(b => b.id === this.page.selection!.start.blockId)
             : null;
-        const currentIndent = currentBlock instanceof TextBlock ? currentBlock.indentLevel : 0;
+        const currentIndent = currentBlock instanceof BaseTextBlock ? currentBlock.indentLevel : 0;
 
-        const resultingBlocks: TextBlock[] = [];
+        const resultingBlocks: BaseTextBlock[] = [];
 
         for (const parsed of parsedLines) {
-            const block = new TextBlock(crypto.randomUUID());
+            const block = this.page.factory.createTextBlock();
             block.variant = parsed.variant;
             block.indentLevel = currentIndent;
 
@@ -196,9 +196,9 @@ export class PasteHandler {
                 block.listStyle = parsed.listStyle;
             }
 
-            block.inlines = parseInlineMarkdown(parsed.text);
+            block.inlines = parseInlineMarkdown(parsed.text, this.page.factory);
             if (block.inlines.length === 0) {
-                const empty = new InlineText(crypto.randomUUID());
+                const empty = this.page.factory.createInlineText();
                 empty.content = "";
                 block.inlines = [empty];
             }

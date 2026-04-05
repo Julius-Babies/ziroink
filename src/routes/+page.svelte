@@ -1,7 +1,8 @@
 <script lang="ts">
     import {JsonView} from "@zerodevx/svelte-json-view";
-    import {Page} from "$lib/ziro/Page.svelte";
-    import {InlineSymbol, type InlineSymbolVariant, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
+    import {ClientFactory} from "$lib/ziro/client/ClientModels.svelte";
+import type {BasePage} from "$lib/ziro/BasePage";
+    import {BaseInlineSymbol, type BaseInlineSymbolVariant, BaseInlineText, BaseTextBlock} from "$lib/ziro/BaseTextBlock";
     import BottomWhitespace from "$lib/ziro/editor/BottomWhitespace.svelte";
     import BlockRenderer from "$lib/ziro/editor/BlockRenderer.svelte";
     import SelectionManager from "$lib/ziro/editor/SelectionManager.svelte";
@@ -12,21 +13,22 @@
     import Login from "$lib/components/Login.svelte";
 
     function createSamplePage() {
-        const p = new Page();
+        const factory = new ClientFactory();
+        const p = factory.createPage();
 
-        function createText(content: string, styles: Partial<InlineText> = {}) {
-            const inline = new InlineText(crypto.randomUUID());
+        function createText(content: string, styles: Partial<BaseInlineText> = {}) {
+            const inline = factory.createInlineText(crypto.randomUUID());
             inline.content = content;
             Object.assign(inline, styles);
             return inline;
         }
 
-        function createSymbol(symbol: InlineSymbolVariant): InlineSymbol {
-            return new InlineSymbol(crypto.randomUUID(), symbol);
+        function createSymbol(symbol: BaseInlineSymbolVariant): BaseInlineSymbol {
+            return factory.createInlineSymbol(symbol);
         }
 
-        function createBlock(variant: any, inlines: (InlineText | InlineSymbol)[], options: any = {}) {
-            const block = new TextBlock(crypto.randomUUID());
+        function createBlock(variant: any, inlines: (BaseInlineText | BaseInlineSymbol)[], options: any = {}) {
+            const block = factory.createTextBlock(crypto.randomUUID());
             (block as any).variant = variant;
             block.inlines = inlines.length > 0 ? inlines : [createText("")];
             (block as any).indentLevel = options.indent || 0;
@@ -133,10 +135,9 @@
 
     let page = $state(createSamplePage());
     let keyboardHandler: KeyboardHandler | null = $state(null);
-
+    
     onMount(() => {
         keyboardHandler = new KeyboardHandler(page);
-
     })
     const session = authClient.useSession();
 
@@ -157,7 +158,7 @@
                 role="textbox"
                 tabindex="-1"
         >
-            {#each page.blocks as block (block.id)}
+            {#each (page.blocks) as block (block.id)}
                 <BlockRenderer
                         block={block}
                         page={page}

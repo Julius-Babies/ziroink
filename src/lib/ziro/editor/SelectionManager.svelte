@@ -1,12 +1,14 @@
 <script lang="ts">
-    import type {Page, SelectionPosition} from "$lib/ziro/Page.svelte";
-    import {InlineSymbol, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
+    import type {BasePage, SelectionPosition} from "$lib/ziro/BasePage";
+    import {BaseInlineSymbol, BaseInlineText, BaseTextBlock} from "$lib/ziro/BaseTextBlock";
 
     let {
         page,
     }: {
-        page: Page
+        page: BasePage
     } = $props();
+    
+
 
     let isDragging = false;
     let dragStartPos: SelectionPosition | null = null;
@@ -57,9 +59,9 @@
                 const inlineId = element.getAttribute("data-ziro-editor-editable-for-block-inline-id");
                 if (blockId && inlineId) {
                     const block = page.findBlock(b => b.id === blockId);
-                    if (block && block instanceof TextBlock) {
+                    if (block && block instanceof BaseTextBlock) {
                         const inline = block.inlines.find(i => i.id === inlineId);
-                        if (inline instanceof InlineText) {
+                        if (inline instanceof BaseInlineText) {
                             offset = Math.min(offset, inline.content.length);
                             return { blockId, offset: block.findOffsetByInline(inlineId) + offset };
                         } else if (inline) {
@@ -106,7 +108,7 @@
             const blockId = closestBlock.getAttribute("data-ziro-block-id");
             if (blockId) {
                 const block = page.findBlock(b => b.id === blockId);
-                if (block && block instanceof TextBlock) {
+                if (block && block instanceof BaseTextBlock) {
                     const rect = closestBlock.getBoundingClientRect();
                     
                     let targetOffset = 0;
@@ -120,7 +122,7 @@
                         // For simplicity, we just check left/right half for block edge,
                         // but normally users expect end-of-line if they drag horizontally off the block.
                         const lastInline = block.inlines[block.inlines.length - 1];
-                        if (lastInline instanceof InlineText) {
+                        if (lastInline instanceof BaseInlineText) {
                             const inlineEl = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${lastInline.id}"]`) as HTMLElement;
                             if (inlineEl) {
                                 const inlineRect = inlineEl.getBoundingClientRect();
@@ -168,7 +170,7 @@
         if (clickCount === 2) {
             // Double click: word selection
             const block = page.findBlock(b => b.id === pos.blockId);
-            if (block instanceof TextBlock) {
+            if (block instanceof BaseTextBlock) {
                 const text = block.getVisualText();
                 const startOffset = findPrevWordBoundary(text, pos.offset);
                 const endOffset = findNextWordBoundary(text, pos.offset);
@@ -181,7 +183,7 @@
         if (clickCount === 3) {
             // Triple click: block selection
             const block = page.findBlock(b => b.id === pos.blockId);
-            if (block instanceof TextBlock) {
+            if (block instanceof BaseTextBlock) {
                 page.setSelection({ blockId: pos.blockId, offset: 0 }, { blockId: pos.blockId, offset: block.getContentLength() });
             }
             clickTimeout = setTimeout(() => clickCount = 0, 400);
@@ -243,11 +245,11 @@
 
     function getDomNodeAndOffsetForPosition(pos: SelectionPosition): { node: Node, offset: number } | null {
         const block = page.findBlock(b => b.id === pos.blockId);
-        if (!block || !(block instanceof TextBlock)) return null;
+        if (!block || !(block instanceof BaseTextBlock)) return null;
 
         let { inline, offsetInInline } = block.findInlineAtOffset(pos.offset);
         
-        if (inline instanceof InlineText) {
+        if (inline instanceof BaseInlineText) {
             const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
             if (!inlineEditable) return null;
 
@@ -255,7 +257,7 @@
             if (!anchorNode) return null;
 
             return { node: anchorNode, offset: offsetInInline };
-        } else if (inline instanceof InlineSymbol) {
+        } else if (inline instanceof BaseInlineSymbol) {
             const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
             if (!inlineEditable) return null;
             return { node: inlineEditable, offset: offsetInInline };
@@ -264,24 +266,24 @@
         const inlineIndex = block.inlines.findIndex(i => i.id === inline.id);
         if (offsetInInline === 0 && inlineIndex > 0) {
             const prev = block.inlines[inlineIndex - 1];
-            if (prev instanceof InlineText) {
+            if (prev instanceof BaseInlineText) {
                 const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${prev.id}"]`) as HTMLElement;
                 if (inlineEditable && inlineEditable.childNodes.item(0)) {
                     return { node: inlineEditable.childNodes.item(0), offset: prev.content.length };
                 }
-            } else if (prev instanceof InlineSymbol) {
+            } else if (prev instanceof BaseInlineSymbol) {
                 const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${prev.id}"]`) as HTMLElement;
                 if (inlineEditable) return { node: inlineEditable, offset: 1 };
             }
         }
         if (inlineIndex < block.inlines.length - 1) {
             const next = block.inlines[inlineIndex + 1];
-            if (next instanceof InlineText) {
+            if (next instanceof BaseInlineText) {
                 const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${next.id}"]`) as HTMLElement;
                 if (inlineEditable && inlineEditable.childNodes.item(0)) {
                     return { node: inlineEditable.childNodes.item(0), offset: 0 };
                 }
-            } else if (next instanceof InlineSymbol) {
+            } else if (next instanceof BaseInlineSymbol) {
                 const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${next.id}"]`) as HTMLElement;
                 if (inlineEditable) return { node: inlineEditable, offset: 0 };
             }
@@ -351,9 +353,9 @@
             const blockId = el.getAttribute('data-ziro-editor-editable-for-block-id')!;
             const inlineId = el.getAttribute('data-ziro-editor-editable-for-block-inline-id')!;
             const block = page.findBlock(b => b.id === blockId);
-            if (!(block instanceof TextBlock)) continue;
+            if (!(block instanceof BaseTextBlock)) continue;
             const inline = block.inlines.find(i => i.id === inlineId);
-            if (!(inline instanceof InlineSymbol)) continue;
+            if (!(inline instanceof BaseInlineSymbol)) continue;
 
             const symbolOffset = block.findOffsetByInline(inlineId);
             const symbolStart = { blockId, offset: symbolOffset };

@@ -1,11 +1,11 @@
 <script lang="ts">
-    import type {TextBlock} from "$lib/ziro/TextBlock.svelte";
+    import type {BaseTextBlock} from "$lib/ziro/BaseTextBlock";
     import {Kbd, KbdGroup} from "$lib/components/ui/kbd";
 
     let {
         block,
     }: {
-        block: TextBlock
+        block: BaseTextBlock
     } = $props();
 </script>
 
