@@ -4,11 +4,16 @@ import {buildOffsetPositions, findClosestLine, handleVerticalNavigation} from "$
 import {PasteHandler} from "$lib/ziro/PasteHandler";
 import {isArrowKey, isInsertLineBreak, isNewBlock, isToggleStyle} from "$lib/ziro/editor/keyboard/getEventAction";
 
-const WORD_SEPARATORS = [" ", "|"];
+const WORD_SEPARATORS = [" ", "|", ".", ",", ";", ":", "!", "?", "(", ")", "[", "]", "{", "}", "\"", "'"];
 
 function isEmoji(str: string): boolean {
     const emojiRegex = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F/u;
     return emojiRegex.test(str);
+}
+
+function isMac(): boolean {
+    if (typeof window === "undefined") return false;
+    return /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 }
 
 export class KeyboardHandler {
@@ -259,9 +264,12 @@ export class KeyboardHandler {
                 }
 
                 let deleteStartOffset: number;
-                if (event.metaKey) {
+                const useLineJump = isMac() ? event.metaKey : false; // Windows meta key is for OS
+                const useWordJump = isMac() ? event.altKey : event.ctrlKey;
+
+                if (useLineJump) {
                     deleteStartOffset = this.getTargetLineOffset(block, cursorOffset, true);
-                } else if (event.altKey) {
+                } else if (useWordJump) {
                     deleteStartOffset = findPrevWordBoundary(block.getVisualText(), cursorOffset);
                 } else {
                     deleteStartOffset = cursorOffset - 1;
@@ -297,10 +305,13 @@ export class KeyboardHandler {
                 const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor);
                 if (!block || !(block instanceof BaseTextBlock)) return;
 
-                if (event.key === "ArrowLeft") {
-                    if (event.metaKey) {
+                if (event.key === "ArrowLeft" || event.key === "Home") {
+                    const useLineJump = isMac() ? event.metaKey : (event.key === "Home");
+                    const useWordJump = isMac() ? event.altKey : event.ctrlKey;
+
+                    if (useLineJump) {
                         this.updateSelection(blockIdAtCursor, this.getTargetLineOffset(block, cursorOffset, true), isShift);
-                    } else if (event.altKey) {
+                    } else if (useWordJump) {
                         const newOffset = findPrevWordBoundary(block.getVisualText(), cursorOffset);
                         if (newOffset < cursorOffset) {
                             this.updateSelection(blockIdAtCursor, newOffset, isShift);
@@ -326,10 +337,13 @@ export class KeyboardHandler {
                             }
                         }
                     }
-                } else if (event.key === "ArrowRight") {
-                    if (event.metaKey) {
+                } else if (event.key === "ArrowRight" || event.key === "End") {
+                    const useLineJump = isMac() ? event.metaKey : (event.key === "End");
+                    const useWordJump = isMac() ? event.altKey : event.ctrlKey;
+
+                    if (useLineJump) {
                         this.updateSelection(blockIdAtCursor, this.getTargetLineOffset(block, cursorOffset, false), isShift);
-                    } else if (event.altKey) {
+                    } else if (useWordJump) {
                         const text = block.getVisualText();
                         const newOffset = findNextWordBoundary(text, cursorOffset);
                         if (newOffset > cursorOffset) {

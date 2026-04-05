@@ -2,8 +2,17 @@
     import { Button } from "$lib/components/ui/button";
     import { Input } from "$lib/components/ui/input";
     import { Label } from "$lib/components/ui/label";
-    import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "$lib/components/ui/card";
+    import {
+        Card,
+        CardContent,
+        CardDescription,
+        CardFooter,
+        CardHeader,
+        CardTitle,
+        Title
+    } from "$lib/components/ui/card";
     import { authClient } from "$lib/client";
+    import buildTitle from "$lib/components/ui/buildTitle";
 
     let email = $state("");
     let password = $state("");
@@ -36,7 +45,13 @@
         }
         loading = false;
     }
+
+    const title = buildTitle("Anmelden")
 </script>
+
+<svelte:head>
+    <title>{title}</title>
+</svelte:head>
 
 <div class="flex items-center justify-center min-h-screen bg-gray-50 p-4">
     <Card class="w-full max-w-sm">

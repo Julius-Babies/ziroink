@@ -11,5 +11,5 @@ export function isToggleStyle(event: KeyboardEvent): boolean {
 }
 
 export function isArrowKey(key: string): boolean {
-    return ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key);
+    return ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(key);
 }

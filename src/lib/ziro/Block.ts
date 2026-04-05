@@ -3,4 +3,5 @@ export interface Block {
     sortKey: string;
     indentLevel: number;
     toObject(): any;
+    toDisplayText(): string;
 }

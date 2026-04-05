@@ -11,6 +11,7 @@
     import SelectionManager from "$lib/ziro/editor/SelectionManager.svelte";
     import { onMount } from "svelte";
     import { v4 as uuidv4 } from "uuid";
+    import buildTitle from "$lib/components/ui/buildTitle";
 
     let { data } = $props();
 
@@ -147,7 +148,21 @@
         };
     })
 
+    let title = $derived.by(() => {
+        const TITLE_MAX_LENGTH = 40;
+        const firstBlock = page.blocks[0];
+        if (firstBlock) {
+            let text = firstBlock.toDisplayText();
+            if (text.length > TITLE_MAX_LENGTH) text = text.slice(0, TITLE_MAX_LENGTH) + "...";
+            if (text) return buildTitle(text);
+        }
+        return buildTitle("Unbenannt");
+    });
 </script>
+
+<svelte:head>
+    <title>{title}</title>
+</svelte:head>
 
 <svelte:window
         oncompositionendcapture={e => keyboardHandler?.onCompositionEnd(e)}
