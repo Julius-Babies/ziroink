@@ -346,7 +346,7 @@
         }
 
         const allSymbolEls = document.querySelectorAll('[data-ziro-editor-editable-for-block-inline-id]');
-        const symbolRects: { rect: Rect, top: number, bottom: number }[] = [];
+        const symbolRects: Rect[] = [];
         for (const el of Array.from(allSymbolEls)) {
             const blockId = el.getAttribute('data-ziro-editor-editable-for-block-id')!;
             const inlineId = el.getAttribute('data-ziro-editor-editable-for-block-inline-id')!;
@@ -364,38 +364,52 @@
             if (startsBeforeEnd && endsAfterStart) {
                 const rect = el.getBoundingClientRect();
                 if (rect.width > 0 && rect.height > 0) {
-                    symbolRects.push({ rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width, height: rect.height }, top: rect.top, bottom: rect.bottom });
+                    symbolRects.push({ top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width, height: rect.height });
                 }
             }
         }
 
-        if (textRects.length > 0) {
-            const lineHeight = textRects.reduce((min, r) => Math.min(min, r.height), Infinity);
-            const minTop = textRects.reduce((min, r) => Math.min(min, r.top), Infinity);
+        if (textRects.length === 0 && symbolRects.length === 0) return [];
 
-            for (const { rect } of symbolRects) {
-                const closestTextRect = textRects.reduce((best, r) =>
-                    Math.abs(r.left - rect.left) < Math.abs(best.left - rect.left) ? r : best
-                );
-                const expandedRect: Rect = {
-                    top: closestTextRect.top,
-                    bottom: closestTextRect.bottom,
-                    left: rect.left,
-                    right: rect.right,
-                    width: rect.width,
-                    height: closestTextRect.bottom - closestTextRect.top,
+        const dominantHeight = Math.max(
+            ...textRects.map(r => r.height),
+            ...symbolRects.map(r => r.height),
+            0
+        );
+
+        const expandedTextRects = textRects.map(r => {
+            if (r.height < dominantHeight - 1) {
+                const diff = dominantHeight - r.height;
+                return {
+                    top: r.top - diff / 2,
+                    bottom: r.bottom + diff / 2,
+                    left: r.left,
+                    right: r.right,
+                    width: r.width,
+                    height: dominantHeight,
                 };
-                textRects.push(expandedRect);
             }
-        } else {
-            for (const { rect } of symbolRects) {
-                textRects.push(rect);
+            return r;
+        });
+
+        const expandedSymbolRects = symbolRects.map(r => {
+            if (r.height < dominantHeight - 1) {
+                const diff = dominantHeight - r.height;
+                return {
+                    top: r.top - diff / 2,
+                    bottom: r.bottom + diff / 2,
+                    left: r.left,
+                    right: r.right,
+                    width: r.width,
+                    height: dominantHeight,
+                };
             }
-        }
+            return r;
+        });
 
-        if (textRects.length === 0) return [];
+        const allRects = [...expandedTextRects, ...expandedSymbolRects];
 
-        const sorted = textRects.sort((a, b) => {
+        const sorted = allRects.sort((a, b) => {
             if (Math.abs(a.top - b.top) > 2) return a.top - b.top;
             return a.left - b.left;
         });
