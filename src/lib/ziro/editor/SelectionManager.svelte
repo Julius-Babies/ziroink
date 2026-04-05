@@ -38,9 +38,18 @@
                 if (parent?.hasAttribute("data-ziro-editor-editable")) {
                     element = parent;
                 }
-            } else if (node.nodeType === Node.ELEMENT_NODE && (node as Element).hasAttribute("data-ziro-editor-editable")) {
-                element = node as Element;
-                offset = 0;
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                const el = node as Element;
+                if (el.hasAttribute("data-ziro-editor-editable")) {
+                    element = el;
+                    offset = 0;
+                } else {
+                    const parent = el.closest('[data-ziro-editor-editable]');
+                    if (parent) {
+                        element = parent;
+                        offset = 0;
+                    }
+                }
             }
 
             if (element) {
@@ -49,12 +58,20 @@
                 if (blockId && inlineId) {
                     const block = page.findBlock(b => b.id === blockId);
                     if (block && block instanceof TextBlock) {
-                        const blockOffset = block.findOffsetByInline(inlineId);
                         const inline = block.inlines.find(i => i.id === inlineId);
-                        if (inline && inline instanceof InlineText) {
+                        if (inline instanceof InlineText) {
                             offset = Math.min(offset, inline.content.length);
+                            return { blockId, offset: block.findOffsetByInline(inlineId) + offset };
+                        } else if (inline) {
+                            const rect = element.getBoundingClientRect();
+                            const xPositionRelativeToElement = e.clientX - rect.left;
+                            const symbolOffset = block.findOffsetByInline(inlineId);
+                            if (xPositionRelativeToElement / rect.width < 0.5) {
+                                return { blockId, offset: symbolOffset };
+                            } else {
+                                return { blockId, offset: symbolOffset + 1 };
+                            }
                         }
-                        return { blockId, offset: blockOffset + offset };
                     }
                 }
             }

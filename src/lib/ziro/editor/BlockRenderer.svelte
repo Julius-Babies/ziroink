@@ -70,7 +70,7 @@
                                 italic={inline.italic}
                                 underline={inline.underline}
                                 strikethrough={inline.strikethrough}
-                        />{:else if inline instanceof InlineSymbol}<InlineSymbolRenderer symbol={inline} />{/if}{#if index === block.inlines.length - 1 && !(inline instanceof InlineText)}<Editable
+                        />{:else if inline instanceof InlineSymbol}<InlineSymbolRenderer symbol={inline} blockId={block.id} />{/if}{#if index === block.inlines.length - 1 && !(inline instanceof InlineText)}<Editable
                                 inlineId={inline.id}
                                 type="inline"
                                 blockId={block.id}

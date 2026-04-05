@@ -1,7 +1,7 @@
 <script lang="ts">
     import {JsonView} from "@zerodevx/svelte-json-view";
     import {Page} from "$lib/ziro/Page.svelte";
-    import {TextBlock, InlineText} from "$lib/ziro/TextBlock.svelte";
+    import {InlineSymbol, type InlineSymbolVariant, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
     import BottomWhitespace from "$lib/ziro/editor/BottomWhitespace.svelte";
     import BlockRenderer from "$lib/ziro/editor/BlockRenderer.svelte";
     import SelectionManager from "$lib/ziro/editor/SelectionManager.svelte";
@@ -18,7 +18,11 @@
             return inline;
         }
 
-        function createBlock(variant: any, inlines: InlineText[], options: any = {}) {
+        function createSymbol(symbol: InlineSymbolVariant): InlineSymbol {
+            return new InlineSymbol(crypto.randomUUID(), symbol);
+        }
+
+        function createBlock(variant: any, inlines: (InlineText | InlineSymbol)[], options: any = {}) {
             const block = new TextBlock(crypto.randomUUID());
             (block as any).variant = variant;
             block.inlines = inlines.length > 0 ? inlines : [createText("")];
@@ -92,6 +96,17 @@
                 listStyle: orderedListStyle("", ")", "number"),
                 indent: 1
             }),
+            createBlock("paragraph", []),
+            createBlock("h2", [createText("Inline Symbols")]),
+            createBlock("paragraph", [
+                createText("You can insert special symbols using shortcuts: "),
+                createSymbol("check"),
+                createText(" via (/), "),
+                createSymbol("x"),
+                createText(" via (x) and "),
+                createSymbol("question_mark"),
+                createText(" via (?)"),
+            ]),
             createBlock("paragraph", []),
         ];
 
