@@ -1,7 +1,9 @@
-import type {Page} from "$lib/ziro/Page.svelte";
-import {InlineSymbol, InlineText, type Inline, type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte";
+import type {Page} from "$lib/ziro/Page.svelte.js";
+import {type Inline, InlineSymbol, InlineText, type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte.js";
 import {buildOffsetPositions, findClosestLine, handleVerticalNavigation} from "$lib/ziro/VerticalNavigation";
 import {PasteHandler} from "$lib/ziro/PasteHandler";
+import {isArrowKey, isInsertLineBreak, isNewBlock, isToggleStyle} from "$lib/ziro/editor/keyboard/getEventAction";
+import {tick} from "svelte";
 
 const WORD_SEPARATORS = [" ", "|"];
 
@@ -211,8 +213,15 @@ export class KeyboardHandler {
         return this.page.selection.end ?? this.page.selection.start;
     }
 
+    onCompositionEnd(e: CompositionEvent) {
+        e.preventDefault();
+        this.handleNewCharacter(e.data);
+    }
+
     onEvent(event: KeyboardEvent) {
-        if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+        if (event.isComposing) return;
+
+        if (isToggleStyle(event)) {
             const key = event.key.toLowerCase();
             if (key === "b") {
                 event.preventDefault();
@@ -244,17 +253,12 @@ export class KeyboardHandler {
                     this.page.updateBlockIndent(block.id, -1);
                 } else if (cursorPos.offset === 0) {
                     this.page.updateBlockIndent(block.id, 1);
-                } else {
-                    const newPos = this.getCursorPosition() || cursorPos;
-                    this.page.insertText({ blockId: block.id, offset: newPos.offset }, "\t");
-                    this.page.setSelection({ blockId: block.id, offset: newPos.offset + 1 }, null);
-                    this.page.cursorXPosition = null;
                 }
             }
             return;
         }
 
-        if (event.key === "Enter" && event.shiftKey) {
+        if (isInsertLineBreak(event)) {
             event.preventDefault();
 
             const blockIdAtCursor = this.page.selection?.start.blockId;
@@ -271,7 +275,7 @@ export class KeyboardHandler {
             return;
         }
 
-        if (event.key === "Enter" && !event.shiftKey) {
+        if (isNewBlock(event)) {
             event.preventDefault();
             this.deleteSelection();
             const blockIdAtCursor = this.page.selection?.start.blockId
@@ -294,7 +298,7 @@ export class KeyboardHandler {
 
             const newBlock = new TextBlock(crypto.randomUUID())
             newBlock.indentLevel = block.indentLevel;
-            
+
             if (block instanceof TextBlock) {
                 if (!event.ctrlKey) {
                     let listContext: TextBlock | null = null;
@@ -311,7 +315,7 @@ export class KeyboardHandler {
                             }
                         }
                     }
-                    
+
                     if (listContext) {
                         newBlock.listType = listContext.listType;
                         newBlock.listStyle = listContext.listStyle;
@@ -505,7 +509,6 @@ export class KeyboardHandler {
             const block = this.page.findBlock(b => b.id === blockIdAtCursor);
             if (!block || !(block instanceof TextBlock)) return;
 
-            const currentInline = block.findInlineAtOffset(cursorPos.offset).inline;
             const textBeforeCursor = block.getVisualText().slice(0, cursorPos.offset);
             if (textBeforeCursor.endsWith("(/")) {
                 event.preventDefault();
@@ -532,76 +535,74 @@ export class KeyboardHandler {
         }
 
         if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
-            event.preventDefault();
-
+            event.preventDefault()
             this.deleteSelection();
-
-            const blockIdAtCursor = this.page.selection?.start.blockId;
-            if (!blockIdAtCursor) return;
-            const block = this.page.findBlock(b => b.id === blockIdAtCursor);
-            if (!block || !(block instanceof TextBlock)) return;
-
-            const cursorOffset = this.page.selection!.start.offset;
-
-            if (event.key === " ") {
-                const textBefore = block.getVisualText().slice(0, cursorOffset);
-                if (textBefore.match(/^#{1,6}$/)) {
-                    this.page.updateBlockVariant(block.id, `h${textBefore.length}` as any);
-                    this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
-                    this.page.setSelection({blockId: block.id, offset: 0}, null);
-                    this.page.cursorXPosition = null;
-                    return;
-                } else if (textBefore.match(/^(\*|-|->)$/)) {
-                    let listStyle: ListStyle;
-                    if (textBefore === "*") {
-                        listStyle = { type: "bullet" };
-                    } else if (textBefore === "-") {
-                        listStyle = { type: "dash" };
-                    } else {
-                        listStyle = { type: "arrow" };
-                    }
-                    this.page.updateBlockList(block.id, "unordered", listStyle);
-                    this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
-                    this.page.setSelection({blockId: block.id, offset: 0}, null);
-                    this.page.cursorXPosition = null;
-                    return;
-                } else {
-                    const orderedMatch = textBefore.match(/^([0-9]+|a|A|i|I)([.)])$/);
-                    if (orderedMatch) {
-                        const trigger = orderedMatch[1];
-                        const suffix = orderedMatch[2];
-                        let listStyle: ListStyle;
-
-                        if (/^[0-9]+$/.test(trigger)) {
-                            listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "number" };
-                        } else if (trigger === "a") {
-                            listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "letter_lowercase" };
-                        } else if (trigger === "A") {
-                            listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "letter_uppercase" };
-                        } else if (trigger === "i") {
-                            listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "roman_lowercase" };
-                        } else {
-                            listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "roman_uppercase" };
-                        }
-
-                        this.page.updateBlockList(block.id, "ordered", listStyle);
-                        this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
-                        this.page.setSelection({blockId: block.id, offset: 0}, null);
-                        this.page.cursorXPosition = null;
-                        return;
-                    }
-                }
-            }
-
-            this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, event.key);
-            this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset + event.key.length }, null);
-            this.page.cursorXPosition = null;
+            this.handleNewCharacter(event.key);
         }
     }
-}
 
-function isArrowKey(key: string): boolean {
-    return ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key);
+    private handleNewCharacter(key: string) {
+        const blockIdAtCursor = this.page.selection?.start.blockId;
+        if (!blockIdAtCursor) return;
+        const block = this.page.findBlock(b => b.id === blockIdAtCursor);
+        if (!block || !(block instanceof TextBlock)) return;
+
+        const cursorOffset = this.page.selection!.start.offset;
+
+        if (key === " ") {
+            const textBefore = block.getVisualText().slice(0, cursorOffset);
+            if (textBefore.match(/^#{1,6}$/)) {
+                this.page.updateBlockVariant(block.id, `h${textBefore.length}` as any);
+                this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
+                this.page.setSelection({blockId: block.id, offset: 0}, null);
+                this.page.cursorXPosition = null;
+                return;
+            } else if (textBefore.match(/^(\*|-|->)$/)) {
+                let listStyle: ListStyle;
+                if (textBefore === "*") {
+                    listStyle = { type: "bullet" };
+                } else if (textBefore === "-") {
+                    listStyle = { type: "dash" };
+                } else {
+                    listStyle = { type: "arrow" };
+                }
+                this.page.updateBlockList(block.id, "unordered", listStyle);
+                this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
+                this.page.setSelection({blockId: block.id, offset: 0}, null);
+                this.page.cursorXPosition = null;
+                return;
+            } else {
+                const orderedMatch = textBefore.match(/^([0-9]+|a|A|i|I)([.)])$/);
+                if (orderedMatch) {
+                    const trigger = orderedMatch[1];
+                    const suffix = orderedMatch[2];
+                    let listStyle: ListStyle;
+
+                    if (/^[0-9]+$/.test(trigger)) {
+                        listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "number" };
+                    } else if (trigger === "a") {
+                        listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "letter_lowercase" };
+                    } else if (trigger === "A") {
+                        listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "letter_uppercase" };
+                    } else if (trigger === "i") {
+                        listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "roman_lowercase" };
+                    } else {
+                        listStyle = { type: "ordered", prefix: "", suffix: suffix as "." | ")", variant: "roman_uppercase" };
+                    }
+
+                    this.page.updateBlockList(block.id, "ordered", listStyle);
+                    this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
+                    this.page.setSelection({blockId: block.id, offset: 0}, null);
+                    this.page.cursorXPosition = null;
+                    return;
+                }
+            }
+        }
+
+        this.page.insertText({ blockId: blockIdAtCursor, offset: cursorOffset }, key);
+        this.page.setSelection({ blockId: blockIdAtCursor, offset: cursorOffset + key.length }, null);
+        this.page.cursorXPosition = null;
+    }
 }
 
 function findPrevWordBoundary(text: string, fromOffset: number): number {
@@ -629,3 +630,17 @@ function findNextWordBoundary(text: string, fromOffset: number): number {
 
     return fromOffset + i;
 }
+
+const getDeadChar = (event: KeyboardEvent): string | null => {
+    if (["^", "´", "`", "~"].includes(event.key)) return event.key;
+
+    console.log(event.code)
+
+    const map: Record<string, string> = {
+        "Quote": "´",
+        "Backquote": "`",
+        "BracketLeft": "^",
+        "BracketRight": "~",
+    };
+    return map[event.code] || null;
+};

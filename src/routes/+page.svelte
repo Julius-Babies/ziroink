@@ -5,7 +5,7 @@
     import BottomWhitespace from "$lib/ziro/editor/BottomWhitespace.svelte";
     import BlockRenderer from "$lib/ziro/editor/BlockRenderer.svelte";
     import SelectionManager from "$lib/ziro/editor/SelectionManager.svelte";
-    import {KeyboardHandler} from "$lib/ziro/KeyboardHandler";
+    import {KeyboardHandler} from "$lib/ziro/editor/keyboard/KeyboardHandler";
     import {onMount} from "svelte";
 
     function createSamplePage() {
@@ -135,7 +135,12 @@
     })
 </script>
 
-<svelte:window onkeydowncapture={(e) => keyboardHandler?.onEvent(e)} onbeforeinputcapture={(e) => keyboardHandler?.onBeforeInput(e)} onpastecapture={(e) => keyboardHandler?.onPaste(e)}/>
+<svelte:window
+        oncompositionendcapture={e => keyboardHandler?.onCompositionEnd(e)}
+        onkeydowncapture={e => keyboardHandler?.onEvent(e)}
+        onbeforeinputcapture={e => keyboardHandler?.onBeforeInput(e)}
+        onpastecapture={e => keyboardHandler?.onPaste(e)}
+/>
 
 <div class="w-full h-full flex flex-row">
     <div
