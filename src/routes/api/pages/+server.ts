@@ -1,9 +1,9 @@
-import { pubsub } from '$lib/server/events';
-import { db } from '$lib/server/db';
-import { page } from '$lib/server/db/schema';
-import { v4 as uuidv4 } from 'uuid';
-import { json, type RequestEvent } from '@sveltejs/kit';
-import type {NewPageEvent} from "./sync/+server";
+import {pubsub} from '$lib/server/events';
+import {db} from '$lib/server/db';
+import {page} from '$lib/server/db/schema';
+import {v4 as uuidV4} from 'uuid';
+import {json, type RequestEvent} from '@sveltejs/kit';
+import {NEW_PAGE_EVENT_KEY, type ServerNewPageEvent} from "$lib/server/sync/events";
 
 export async function POST({ request, locals }: RequestEvent) {
     if (!locals.session || !locals.user) {
@@ -19,7 +19,7 @@ export async function POST({ request, locals }: RequestEvent) {
     }
 
     const newPage = {
-        id: uuidv4(),
+        id: uuidV4(),
         ownerId: locals.user.id,
         parentId,
         createdAt: new Date(),
@@ -27,16 +27,17 @@ export async function POST({ request, locals }: RequestEvent) {
 
     await db.insert(page).values(newPage);
 
-    const newPageEvent: NewPageEvent = {
+    const newPageEvent: ServerNewPageEvent = {
         page_id: newPage.id,
-        owner_id: locals.user.id,
+        created_by: locals.user.id,
         parent_page_id: parentId,
         page_title: "Unbenannte Seite",
         created_at: newPage.createdAt.getTime(),
+        affected_user_ids: [locals.user.id],
     }
 
     // Broadcast the new page to all listeners
-    pubsub.emit('new_page', newPageEvent);
+    pubsub.emit(NEW_PAGE_EVENT_KEY, newPageEvent);
 
     return json(newPage);
 }

@@ -4,7 +4,7 @@ import {eq} from "drizzle-orm";
 import {page} from "$lib/server/db/schema";
 import {auth} from "$lib/auth";
 import {pubsub} from "$lib/server/events";
-import type {PageDeletedEvent} from "../sync/+server";
+import {PAGE_DELETED_EVENT_KEY, type ServerPageDeleteEvent} from "$lib/server/sync/events";
 
 export async function DELETE({ request, params }: RequestEvent) {
     const session = await auth.api.getSession({
@@ -29,12 +29,12 @@ export async function DELETE({ request, params }: RequestEvent) {
         .set({deletedAt: new Date()})
         .where(eq(page.id, pageId));
 
-    const event: PageDeletedEvent = {
-        owner_id: targetPage.ownerId,
+    const event: ServerPageDeleteEvent = {
+        affected_user_ids: [targetPage.ownerId],
         page_id: targetPage.id,
     }
 
-    pubsub.emit('page_deleted', event);
+    pubsub.emit(PAGE_DELETED_EVENT_KEY, event);
 
     return json({ success: true });
 }

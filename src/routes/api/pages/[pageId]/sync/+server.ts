@@ -1,13 +1,13 @@
-import { json } from "@sveltejs/kit";
-import { auth } from "$lib/auth";
-import { db } from "$lib/server/db";
-import { block as blockTable, page } from "$lib/server/db/schema";
-import { eq, inArray } from "drizzle-orm";
-import type { PageEvent } from "$lib/ziro/Events";
-import type { RequestEvent } from "@sveltejs/kit";
-import { pubsub } from "$lib/server/events";
-import { ServerFactory } from "$lib/ziro/server/ServerModels";
-import type {PageMetadataChangedEvent} from "../../sync/+server";
+import type {RequestEvent} from "@sveltejs/kit";
+import {json} from "@sveltejs/kit";
+import {auth} from "$lib/auth";
+import {db} from "$lib/server/db";
+import {block as blockTable, page} from "$lib/server/db/schema";
+import {eq, inArray} from "drizzle-orm";
+import type {PageEvent} from "$lib/ziro/Events";
+import {pubsub} from "$lib/server/events";
+import {ServerFactory} from "$lib/ziro/server/ServerModels";
+import {PAGE_METADATA_CHANGED_EVENT_KEY, type ServerPageMetadataChangedEvent} from "$lib/server/sync/events";
 
 export const POST = async ({ request, params }: RequestEvent) => {
     const session = await auth.api.getSession({
@@ -101,13 +101,13 @@ export const POST = async ({ request, params }: RequestEvent) => {
             title = displayText;
         }
 
-        const event: PageMetadataChangedEvent = {
+        const event: ServerPageMetadataChangedEvent = {
             page_id: pageId,
-            owner_id: targetPage.ownerId,
-            new_title: title,
+            affected_user_ids: [targetPage.ownerId],
+            flat_title: { new_title: title }
         }
 
-        pubsub.emit(`page_metadata_changed`, event);
+        pubsub.emit(PAGE_METADATA_CHANGED_EVENT_KEY, event);
     }
 
     return json({ success: true, syncedBlocks: modifiedBlocks.length, deletedBlocks: blocksToDelete.size });

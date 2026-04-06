@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type {ApiPage} from "$lib/ziro/ApiPage";
+    import type {ApiPage} from "$lib/web/app-shell/sidebar/model/ApiPage";
     import {
         ContextMenu,
         ContextMenuContent,
@@ -8,6 +8,7 @@
     } from "$lib/components/ui/context-menu";
     import {EllipsisVertical, Trash} from "@lucide/svelte";
     import {Button} from "$lib/components/ui/button";
+    import {sidebarService} from "$lib/web/app-shell/sidebar/service/SidebarService";
 
     let {
         page,
@@ -31,24 +32,30 @@
     }
 
     async function deletePage() {
-        const response = await fetch(`/api/pages/${page.id}`, {
-            method: 'DELETE',
-        });
+        await sidebarService.delete(page.id);
     }
+
+    let isHovering = $state(false);
 </script>
 
 <ContextMenu bind:open={contextMenuVisible}>
     <ContextMenuTrigger>
         <a
+                onmouseenter={() => isHovering = true}
+                onmouseleave={() => isHovering = false}
                 href="/app/{page.id}"
-                class="px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-300 rounded truncate block tracking-tight font-medium transition-colors"
+                class="px-2 text-sm text-zinc-600 hover:bg-zinc-300 rounded truncate block tracking-tight font-medium transition-colors"
                 class:bg-zinc-200={currentUrl === `/app/${page.id}`}
         >
             <div class="flex flex-row items-center justify-between">
                 <div class="flex flex-row items-center">
                     <span>{page.title}</span>
                 </div>
-                <div class="flex flex-row items-center">
+                <div
+                        class="flex flex-row items-center transition-opacity"
+                        class:opacity-0={!isHovering}
+                        class:opacity-100={isHovering || contextMenuVisible}
+                >
                     <Button
                             onclick={onContextMenuButtonClick}
                             size="icon-sm"
@@ -61,7 +68,10 @@
         </a>
     </ContextMenuTrigger>
 
-    <ContextMenuContent class="w-52">
+    <ContextMenuContent
+            onmouseenter={console.log}
+            onmouseleave={console.log}
+            class="w-52">
         <ContextMenuItem
                 onclick={deletePage}
                 class="text-destructive"

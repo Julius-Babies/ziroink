@@ -2,7 +2,7 @@
     import {authClient} from "$lib/client";
     import {onMount} from "svelte";
     import {goto} from "$app/navigation";
-    import Sidebar from "$lib/web/pages/app-shell/sidebar/Sidebar.svelte";
+    import Sidebar from "$lib/web/app-shell/sidebar/ui/Sidebar.svelte";
     import {Code} from "@lucide/svelte";
     import {Button} from "$lib/components/ui/button";
     import {showPageDeveloperDetails} from "./state";
