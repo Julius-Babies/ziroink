@@ -1,5 +1,9 @@
 import { pubsub } from '$lib/server/events';
 import type { RequestEvent } from '@sveltejs/kit';
+import {ServerFactory} from "$lib/ziro/server/ServerModels";
+import { db } from "$lib/server/db";
+import {block, page} from "$lib/server/db/schema";
+import {and, eq, isNull} from "drizzle-orm";
 
 export function GET({ locals }: RequestEvent) {
     if (!locals.session || !locals.user) {
@@ -8,9 +12,46 @@ export function GET({ locals }: RequestEvent) {
 
     const userId = locals.user.id;
 
+    const factory = new ServerFactory();
+
     const stream = new ReadableStream({
         start(controller) {
             let interval: any = null;
+
+            db
+                .select()
+                .from(page)
+                .where(and(eq(page.ownerId, userId), isNull(page.deletedAt)))
+                .orderBy(page.createdAt)
+                .then(async (dbPages) => {
+                    const pages = await Promise.all(dbPages.map(async (p) => {
+                        const firstBlock = await db.query.block.findFirst({
+                            where: eq(block.pageId, p.id),
+                            orderBy: (block, { asc }) => [asc(block.sortKey)]
+                        });
+
+                        let title = "Unbenannte Seite";
+                        if (firstBlock) {
+                            const block = factory.fromObject(firstBlock as any);
+                            const displayText = block.toDisplayText();
+                            if (displayText && displayText !== "") {
+                                title = displayText;
+                            }
+                        }
+
+                        return {
+                            page_id: p.id,
+                            title: title,
+                            created_at: p.createdAt.getTime(),
+                        };
+                    }));
+
+                    const message: InitialPagesEventWithType = {
+                        pages: pages,
+                        type: "initial_pages",
+                    };
+                    controller.enqueue(`data: ${JSON.stringify(message)}\n\n`);
+                });
 
             let newPageListener = (newPage: NewPageEvent) => {
                 if (newPage.owner_id !== userId) return;
@@ -77,6 +118,18 @@ export interface NewPageEvent {
 
 export type NewPageEventWithType = NewPageEvent & { type: "new_page" }
 
+export interface InitialPagesEvent {
+    pages: InitialPage[];
+}
+
+export interface InitialPage {
+    page_id: string;
+    title: string;
+    created_at: number;
+}
+
+export type InitialPagesEventWithType = InitialPagesEvent & { type: "initial_pages" }
+
 export interface PageMetadataChangedEvent {
     page_id: string;
     owner_id: string;
@@ -92,4 +145,4 @@ export interface PageDeletedEvent {
 
 export type PageDeletedEventWithType = PageDeletedEvent & { type: "page_deleted" }
 
-export type EventWithType = NewPageEventWithType | PageMetadataChangedEventWithType | PageDeletedEventWithType
+export type EventWithType = NewPageEventWithType | InitialPagesEventWithType | PageMetadataChangedEventWithType | PageDeletedEventWithType

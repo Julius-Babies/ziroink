@@ -4,7 +4,7 @@
     import {onMount} from "svelte";
     import {page} from "$app/state";
     import type {ApiPage} from "$lib/ziro/ApiPage";
-    import PageItem from "$lib/ziro/ui/core/sidebar/PageItem.svelte";
+    import PageItem from "$lib/web/pages/app-shell/sidebar/PageItem.svelte";
     import {goto} from "$app/navigation";
     import type {EventWithType} from "../../../../../routes/api/pages/sync/+server";
 
@@ -17,7 +17,7 @@
     let isResizing = $state(false);
     
     // We derive local state from the layout load data
-    let pages = $state<ApiPage[]>(page.data.pages || []);
+    let pages = $state<ApiPage[]>([]);
 
     function onMouseDown() {
         isResizing = true;
@@ -34,14 +34,18 @@
     }
 
     onMount(() => {
-        // Init pages from load state explicitly to be safe
-        pages = page.data.pages || [];
-
         // SSE connection to sync pages in real-time
         const source = new EventSource('/api/pages/sync');
         source.onmessage = (event) => {
             const eventData: EventWithType = JSON.parse(event.data);
-            if (eventData.type === "new_page") {
+            if (eventData.type === "initial_pages") {
+                const newApiPages: ApiPage[] = eventData.pages.map(page => ({
+                    id: page.page_id,
+                    created_at: new Date(page.created_at),
+                    title: page.title,
+                }));
+                pages = newApiPages.sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
+            } else if (eventData.type === "new_page") {
                 if (!pages.find(p => p.id === eventData.page_id)) {
                     const newApiPage: ApiPage = {
                         id: eventData.page_id,
