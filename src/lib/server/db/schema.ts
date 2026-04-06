@@ -118,6 +118,8 @@ export const page = sqliteTable(
         updatedAt: integer("updated_at", { mode: "timestamp_ms" })
             .$onUpdate(() => /* @__PURE__ */ new Date())
             .notNull(),
+        deletedAt: integer("deleted_at", { mode: "timestamp_ms" })
+            .default(sql`NULL`),
     }
 )
 

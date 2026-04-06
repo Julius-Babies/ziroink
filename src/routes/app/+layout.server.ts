@@ -1,6 +1,6 @@
 import {db} from '$lib/server/db';
 import {block, page} from '$lib/server/db/schema';
-import {eq} from 'drizzle-orm';
+import {and, eq, isNull} from 'drizzle-orm';
 import {redirect} from '@sveltejs/kit';
 import type {LayoutServerLoad} from './$types';
 import type {ApiPage} from "$lib/ziro/ApiPage";
@@ -14,7 +14,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
     const dbPages = await db
         .select()
         .from(page)
-        .where(eq(page.ownerId, locals.user.id))
+        .where(and(eq(page.ownerId, locals.user.id), isNull(page.deletedAt)))
         .orderBy(page.createdAt);
 
     const factory = new ServerFactory();
@@ -25,11 +25,11 @@ export const load: LayoutServerLoad = async ({ locals }) => {
             orderBy: (block, { asc }) => [asc(block.sortKey)]
         });
         
-        let title = "Neue Seite";
+        let title = "Unbenannte Seite";
         if (firstBlock) {
             const block = factory.fromObject(firstBlock as any);
             const displayText = block.toDisplayText();
-            if (displayText) {
+            if (displayText && displayText !== "") {
                 title = displayText;
             }
         }

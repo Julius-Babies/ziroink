@@ -3,6 +3,7 @@ import { db } from '$lib/server/db';
 import { page } from '$lib/server/db/schema';
 import { v4 as uuidv4 } from 'uuid';
 import { json, type RequestEvent } from '@sveltejs/kit';
+import type {NewPageEvent} from "./sync/+server";
 
 export async function POST({ request, locals }: RequestEvent) {
     if (!locals.session || !locals.user) {
@@ -25,9 +26,17 @@ export async function POST({ request, locals }: RequestEvent) {
     };
 
     await db.insert(page).values(newPage);
-    
+
+    const newPageEvent: NewPageEvent = {
+        page_id: newPage.id,
+        owner_id: locals.user.id,
+        parent_page_id: parentId,
+        page_title: "Unbenannte Seite",
+        created_at: newPage.createdAt.getTime(),
+    }
+
     // Broadcast the new page to all listeners
-    pubsub.emit('new_page', newPage);
+    pubsub.emit('new_page', newPageEvent);
 
     return json(newPage);
 }

@@ -10,17 +10,35 @@ export function GET({ locals }: RequestEvent) {
 
     const stream = new ReadableStream({
         start(controller) {
-            let listener: any = null;
             let interval: any = null;
 
-            listener = (newPage: any) => {
-                // Only send to the correct owner
-                if (newPage.ownerId === userId) {
-                    controller.enqueue(`data: ${JSON.stringify(newPage)}\n\n`);
-                }
-            };
-            
-            pubsub.on('new_page', listener);
+            let newPageListener = (newPage: NewPageEvent) => {
+                if (newPage.owner_id !== userId) return;
+
+                const message = { ...newPage, type: "new_page" }
+
+                controller.enqueue(`data: ${JSON.stringify(message)}\n\n`);
+            }
+
+            let pageMetadataChangedListener = (event: PageMetadataChangedEvent) => {
+                if (event.owner_id !== userId) return;
+                
+                const message = { ...event, type: "page_metadata_changed" }
+
+                controller.enqueue(`data: ${JSON.stringify(message)}\n\n`);
+            }
+
+            let pageDeletedListener = (event: PageDeletedEvent) => {
+                if (event.owner_id !== userId) return;
+
+                const message: PageDeletedEventWithType = { ...event, type: "page_deleted" }
+
+                controller.enqueue(`data: ${JSON.stringify(message)}\n\n`);
+            }
+
+            pubsub.on('new_page', newPageListener);
+            pubsub.on('page_metadata_changed', pageMetadataChangedListener);
+            pubsub.on('page_deleted', pageDeletedListener);
 
             // Dummy keep-alive payload to prevent connection timeouts
             interval = setInterval(() => {
@@ -29,7 +47,9 @@ export function GET({ locals }: RequestEvent) {
             
             // Cleanup state attached to locals
             (locals as any).cleanupSync = () => {
-                pubsub.off('new_page', listener);
+                pubsub.off('new_page', newPageListener);
+                pubsub.off('page_metadata_changed', pageMetadataChangedListener);
+                pubsub.off("page_deleted", pageDeletedListener)
                 clearInterval(interval);
             };
         },
@@ -46,3 +66,30 @@ export function GET({ locals }: RequestEvent) {
         }
     });
 }
+
+export interface NewPageEvent {
+    page_id: string;
+    page_title: string;
+    parent_page_id: string | null;
+    owner_id: string;
+    created_at: number;
+}
+
+export type NewPageEventWithType = NewPageEvent & { type: "new_page" }
+
+export interface PageMetadataChangedEvent {
+    page_id: string;
+    owner_id: string;
+    new_title?: string;
+}
+
+export type PageMetadataChangedEventWithType = PageMetadataChangedEvent & { type: "page_metadata_changed" }
+
+export interface PageDeletedEvent {
+    page_id: string,
+    owner_id: string,
+}
+
+export type PageDeletedEventWithType = PageDeletedEvent & { type: "page_deleted" }
+
+export type EventWithType = NewPageEventWithType | PageMetadataChangedEventWithType | PageDeletedEventWithType

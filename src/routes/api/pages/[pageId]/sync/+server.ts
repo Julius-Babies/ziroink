@@ -7,6 +7,7 @@ import type { PageEvent } from "$lib/ziro/Events";
 import type { RequestEvent } from "@sveltejs/kit";
 import { pubsub } from "$lib/server/events";
 import { ServerFactory } from "$lib/ziro/server/ServerModels";
+import type {PageMetadataChangedEvent} from "../../sync/+server";
 
 export const POST = async ({ request, params }: RequestEvent) => {
     const session = await auth.api.getSession({
@@ -92,17 +93,21 @@ export const POST = async ({ request, params }: RequestEvent) => {
     // Check if the title block (first block) was modified and emit a sidebar update
     const titleBlock = modifiedBlocks.find(b => b.sortKey === "a0");
     if (titleBlock) {
-        let title = "Untitled";
+        let title = "Unbenannte Seite";
         const factory = new ServerFactory();
         const blockObj = factory.fromObject(titleBlock as any);
         const displayText = blockObj.toDisplayText();
-        if (displayText) {
+        if (displayText && displayText !== "") {
             title = displayText;
         }
-        pubsub.emit(`sidebar_title_update`, {
-            pageId,
-            title
-        });
+
+        const event: PageMetadataChangedEvent = {
+            page_id: pageId,
+            owner_id: targetPage.ownerId,
+            new_title: title,
+        }
+
+        pubsub.emit(`page_metadata_changed`, event);
     }
 
     return json({ success: true, syncedBlocks: modifiedBlocks.length, deletedBlocks: blocksToDelete.size });

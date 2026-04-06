@@ -2,7 +2,7 @@
     import {authClient} from "$lib/client";
     import {onMount} from "svelte";
     import {goto} from "$app/navigation";
-    import Sidebar from "./Sidebar.svelte";
+    import Sidebar from "$lib/ziro/ui/core/sidebar/Sidebar.svelte";
     import {Code} from "@lucide/svelte";
     import {Button} from "$lib/components/ui/button";
     import {showPageDeveloperDetails} from "./state";
@@ -16,7 +16,7 @@
         })
     })
 
-    let sidebarWidth = $state(300);
+    let sidebarWidth = $state(200);
 </script>
 
 <div class="flex w-full h-screen relative">

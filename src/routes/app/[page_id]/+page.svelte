@@ -171,6 +171,7 @@
         const TITLE_MAX_LENGTH = 40;
         let t = pageTitle;
         if (t.length > TITLE_MAX_LENGTH) t = t.slice(0, TITLE_MAX_LENGTH) + "...";
+        if (t === "") t = "Unbenannte Seite"
         return buildTitle(t);
     });
 

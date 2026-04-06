@@ -1,9 +1,12 @@
 <script lang="ts">
     import {Button} from "$lib/components/ui/button";
     import {Plus} from "@lucide/svelte";
-    import { onMount } from "svelte";
-    import { page } from "$app/state";
+    import {onMount} from "svelte";
+    import {page} from "$app/state";
     import type {ApiPage} from "$lib/ziro/ApiPage";
+    import PageItem from "$lib/ziro/ui/core/sidebar/PageItem.svelte";
+    import {goto} from "$app/navigation";
+    import type {EventWithType} from "../../../../../routes/api/pages/sync/+server";
 
     let {
         sidebarWidth = $bindable()
@@ -15,7 +18,6 @@
     
     // We derive local state from the layout load data
     let pages = $state<ApiPage[]>(page.data.pages || []);
-    let titleSubscriptions = new Map<string, EventSource>();
 
     function onMouseDown() {
         isResizing = true;
@@ -38,27 +40,35 @@
         // SSE connection to sync pages in real-time
         const source = new EventSource('/api/pages/sync');
         source.onmessage = (event) => {
-            const newPage = JSON.parse(event.data);
-            // Append and sort
-            if (!pages.find(p => p.id === newPage.id)) {
-                pages = [...pages, newPage].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-            }
-        };
+            const eventData: EventWithType = JSON.parse(event.data);
+            if (eventData.type === "new_page") {
+                if (!pages.find(p => p.id === eventData.page_id)) {
+                    const newApiPage: ApiPage = {
+                        id: eventData.page_id,
+                        created_at: new Date(eventData.created_at),
+                        title: eventData.page_title,
+                    }
+                    pages = [...pages, newApiPage].sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
+                }
+            } else if (eventData.type === "page_metadata_changed") {
+                pages = pages.map(page => {
+                    if (page.id !== eventData.page_id) return page;
 
-        // SSE connection for real-time title updates
-        const titleSource = new EventSource('/api/pages/title-sync');
-        titleSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            const p = pages.find(pg => pg.id === data.pageId);
-            if (p) {
-                p.title = data.title;
-                pages = [...pages];
+                    let changedPage = page;
+
+                    if (eventData.new_title !== undefined) {
+                        changedPage.title = eventData.new_title;
+                    }
+
+                    return changedPage;
+                })
+            } else if (eventData.type === "page_deleted") {
+                pages = pages.filter(p => p.id !== eventData.page_id);
             }
         };
 
         return () => {
             source.close();
-            titleSource.close();
         };
     });
 
@@ -68,13 +78,15 @@
             headers: { 'Content-Type': 'application/json' }
         });
         if (res.ok) {
-            const newPage = await res.json();
+            const newPage = {...await res.json(), title: "Unbenannte Seite"};
             // Optional: The EventSource will pick this up automatically for other tabs!
             // We can optimistic update here, or wait for SSE. SSE is so fast we'll just wait for it.
             // Actually, optimistic is nice. Let's do both with a dedupe.
             if (!pages.find(p => p.id === newPage.id)) {
                 pages = [...pages, newPage].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
             }
+
+            await goto("/app/" + newPage.id)
         }
     }
 </script>
@@ -82,11 +94,11 @@
 <svelte:window onmousemove={isResizing ? onMouseMove : null} onmouseup={isResizing ? onMouseUp : null} />
 
 <div
-        class="h-full border-r relative shrink-0 bg-zinc-100"
+        class="h-full border-r relative shrink-0 bg-slate-100"
         style="width: {sidebarWidth}px"
 >
-    <div class="p-4 flex flex-col h-full overflow-hidden">
-        <div class="flex flex-row items-center justify-between mb-4">
+    <div class="p-2 flex flex-col h-full overflow-hidden">
+        <div class="flex flex-row items-center justify-between mb-4 p-2">
             <span class="text-xs font-medium text-zinc-800">Deine Seiten</span>
             <Button
                     size="icon-sm"
@@ -98,15 +110,12 @@
         </div>
         
         <!-- Pages List -->
-        <div class="flex flex-col gap-1 overflow-y-auto">
+        <div class="flex flex-col overflow-y-auto">
             {#each pages as p (p.id)}
-                <a 
-                    href="/app/{p.id}"
-                    class="px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-200 rounded truncate block"
-                    class:bg-zinc-200={page.url.pathname === `/app/${p.id}`}
-                >
-                    {p.title}
-                </a>
+                <PageItem
+                        currentUrl={page.url.pathname}
+                        page={p}
+                />
             {:else}
                 <div class="text-xs text-zinc-400 italic py-2">No pages found</div>
             {/each}
