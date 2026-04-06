@@ -9,8 +9,6 @@
         block: BaseTextBlock,
         page: BasePage
     } = $props();
-    
-
 
     function getOrderedListItemIndex(): number {
         const currentIndex = page.blocks.indexOf(block);
@@ -73,13 +71,13 @@
 {#if (block.listStyle)}
     <div class="w-8 flex content-center justify-center select-none">
         {#if (block.listStyle)?.type === "bullet"}
-            &bullet;
+            <span>&bullet;</span>
         {:else if (block.listStyle)?.type === "dash"}
-            &dash;
+            <span>&dash;</span>
         {:else if (block.listStyle)?.type === "arrow"}
-            ->
+            <span>-></span>
         {:else if (block.listStyle)?.type === "ordered"}
-            {getOrderedMarker()}
+            <span>{getOrderedMarker()}</span>
         {/if}
     </div>
 {/if}

@@ -6,16 +6,17 @@
     import InlineSymbolRenderer from "$lib/ziro/editor/InlineSymbolRenderer.svelte";
     import PlaceholderRenderer from "$lib/ziro/editor/PlaceholderRenderer.svelte";
     import ListIndicator from "$lib/ziro/editor/ListIndicator.svelte";
+    import {GripVertical, Plus} from "@lucide/svelte";
 
     let {
         block,
         page,
+        isPageTitle,
     }: {
         block: Block,
-        page: BasePage
+        page: BasePage,
+        isPageTitle: boolean,
     } = $props();
-    
-
 
     function getVariantClass(block: BaseTextBlock) {
         switch (block.variant) {
@@ -44,42 +45,72 @@
         }
         return roman;
     }
+
+    let isHovering = $state(false);
 </script>
 
 {#if block instanceof BaseTextBlock}
-    <div class="relative w-full shrink-0 min-h-[1.5em] {getVariantClass(block)}" style="margin-left: {((block.indentLevel) - ((block.listType) ? 1 : 0)) * 32}px;" data-ziro-block-id={block.id}>
+    <div
+            tabindex="-1"
+            role="textbox"
+            onmouseenter={() => isHovering = true}
+            onmouseleave={() => isHovering = false}
+            class="relative w-full shrink-0 min-h-[1.5em] {getVariantClass(block)}"
+            data-ziro-block-id={block.id}
+    >
         <div class="flex flex-row w-full">
-            {#if (block.listType)}
-                <ListIndicator block={block} page={page} />
-            {/if}
-            <div class="grow relative min-h-[1.5em]">
-                {#if showPlaceholder}
-                    <PlaceholderRenderer block={block} />
+            <div
+                    data-ziro-editor-block-handle
+                    class="flex flex-row items-end justify-center text-zinc-600 gap-2 pr-2 transition-opacity"
+                    class:opacity-0={!isHovering || isPageTitle}
+                    class:opacity-100={isHovering && !isPageTitle}
+                    class:pointer-events-none={isPageTitle}
+            >
+                <button class="cursor-pointer"><Plus size={22} /></button>
+                <button
+                        class="cursor-grab"
+                        onclick={() => {
+                            if (isPageTitle) return;
+                            page.setSelection({blockId: block.id, offset: 0}, {blockId: block.id, offset: 0}, true)
+                        }}
+                ><GripVertical size={22} /></button>
+            </div>
+            <div
+                    class="inline-flex w-full"
+                    style="margin-left: {((block.indentLevel) - ((block.listType) ? 1 : 0)) * 32}px;"
+            >
+                {#if (block.listType)}
+                    <ListIndicator block={block} page={page} />
                 {/if}
-                {#each (block.inlines) as inline, index (inline.id)}{#if index === 0 && !(inline instanceof BaseInlineText)}<Editable
-                                inlineId={inline.id}
-                                type="inline"
-                                blockId={block.id}
-                                page={page}
-                                content=""
-                        />{/if}{#if inline instanceof BaseInlineText}<Editable
-                                inlineId={inline.id}
-                                type="inline"
-                                blockId={block.id}
-                                page={page}
-                                content={inline.content}
-                                bold={inline.bold}
-                                italic={inline.italic}
-                                underline={inline.underline}
-                                strikethrough={inline.strikethrough}
-                                code={inline.code}
-                        />{:else if inline instanceof BaseInlineSymbol}<InlineSymbolRenderer symbol={inline} blockId={block.id} variant={block.variant} />{/if}{#if index === block.inlines.length - 1 && !(inline instanceof BaseInlineText)}<Editable
-                                inlineId={inline.id}
-                                type="inline"
-                                blockId={block.id}
-                                page={page}
-                                content=""
-                        />{/if}{/each}
+                <div class="grow relative min-h-[1.5em]">
+                    {#if showPlaceholder}
+                        <PlaceholderRenderer block={block} />
+                    {/if}
+                    {#each (block.inlines) as inline, index (inline.id)}{#if index === 0 && !(inline instanceof BaseInlineText)}<Editable
+                            inlineId={inline.id}
+                            type="inline"
+                            blockId={block.id}
+                            page={page}
+                            content=""
+                    />{/if}{#if inline instanceof BaseInlineText}<Editable
+                            inlineId={inline.id}
+                            type="inline"
+                            blockId={block.id}
+                            page={page}
+                            content={inline.content}
+                            bold={inline.bold}
+                            italic={inline.italic}
+                            underline={inline.underline}
+                            strikethrough={inline.strikethrough}
+                            code={inline.code}
+                    />{:else if inline instanceof BaseInlineSymbol}<InlineSymbolRenderer symbol={inline} blockId={block.id} variant={block.variant} />{/if}{#if index === block.inlines.length - 1 && !(inline instanceof BaseInlineText)}<Editable
+                            inlineId={inline.id}
+                            type="inline"
+                            blockId={block.id}
+                            page={page}
+                            content=""
+                    />{/if}{/each}
+                </div>
             </div>
         </div>
     </div>

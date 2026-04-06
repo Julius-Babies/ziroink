@@ -78,73 +78,6 @@
             }
         }
 
-        // Fallback: find the closest block by Y-coordinate if dragged outside editable areas
-        const blocks = Array.from(document.querySelectorAll('[data-ziro-block-id]'));
-        if (blocks.length === 0) return null;
-
-        let closestBlock: Element | null = null;
-        let minDistance = Infinity;
-
-        for (const block of blocks) {
-            const rect = block.getBoundingClientRect();
-            
-            if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                closestBlock = block;
-                break;
-            }
-
-            const distTop = Math.abs(e.clientY - rect.top);
-            const distBottom = Math.abs(e.clientY - rect.bottom);
-            const dist = Math.min(distTop, distBottom);
-
-            if (dist < minDistance) {
-                minDistance = dist;
-                closestBlock = block;
-            }
-        }
-
-        if (closestBlock) {
-            const blockId = closestBlock.getAttribute("data-ziro-block-id");
-            if (blockId) {
-                const block = page.findBlock(b => b.id === blockId);
-                if (block && block instanceof BaseTextBlock) {
-                    const rect = closestBlock.getBoundingClientRect();
-                    
-                    let targetOffset = 0;
-                    if (e.clientY < rect.top) {
-                        targetOffset = 0;
-                    } else if (e.clientY > rect.bottom) {
-                        targetOffset = block.getContentLength();
-                    } else {
-                        // Find the closest character offset by X within this block
-                        // Alternatively, an approximation: if we dragged way to the right, we snap to end of line.
-                        // For simplicity, we just check left/right half for block edge,
-                        // but normally users expect end-of-line if they drag horizontally off the block.
-                        const lastInline = block.inlines[block.inlines.length - 1];
-                        if (lastInline instanceof BaseInlineText) {
-                            const inlineEl = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${lastInline.id}"]`) as HTMLElement;
-                            if (inlineEl) {
-                                const inlineRect = inlineEl.getBoundingClientRect();
-                                if (e.clientX >= inlineRect.right) {
-                                    targetOffset = block.getContentLength();
-                                } else if (e.clientX <= inlineRect.left) {
-                                    targetOffset = 0;
-                                } else {
-                                    targetOffset = e.clientX < rect.left + rect.width / 2 ? 0 : block.getContentLength();
-                                }
-                            } else {
-                                targetOffset = e.clientX < rect.left + rect.width / 2 ? 0 : block.getContentLength();
-                            }
-                        } else {
-                            targetOffset = e.clientX < rect.left + rect.width / 2 ? 0 : block.getContentLength();
-                        }
-                    }
-                    
-                    return { blockId, offset: targetOffset };
-                }
-            }
-        }
-
         return null;
     }
 
@@ -173,7 +106,7 @@
                 const text = block.getVisualText();
                 const startOffset = findPrevWordBoundary(text, pos.offset);
                 const endOffset = findNextWordBoundary(text, pos.offset);
-                page.setSelection({ blockId: pos.blockId, offset: startOffset }, { blockId: pos.blockId, offset: endOffset });
+                page.setSelection({ blockId: pos.blockId, offset: startOffset }, { blockId: pos.blockId, offset: endOffset }, false);
             }
             clickTimeout = setTimeout(() => clickCount = 0, 400);
             return;
@@ -183,7 +116,7 @@
             // Triple click: block selection
             const block = page.findBlock(b => b.id === pos.blockId);
             if (block instanceof BaseTextBlock) {
-                page.setSelection({ blockId: pos.blockId, offset: 0 }, { blockId: pos.blockId, offset: block.getContentLength() });
+                page.setSelection({ blockId: pos.blockId, offset: 0 }, { blockId: pos.blockId, offset: block.getContentLength() }, false);
             }
             clickTimeout = setTimeout(() => clickCount = 0, 400);
             return;
@@ -195,10 +128,10 @@
         dragStartPos = pos;
         
         if (e.shiftKey && page.selection) {
-            page.setSelection(page.selection.start, pos);
+            page.setSelection(page.selection.start, pos, page.selection.isBlockSelection);
             dragStartPos = page.selection.start;
         } else {
-            page.setSelection(pos, null);
+            page.setSelection(pos, null, false);
         }
     }
 
@@ -213,9 +146,9 @@
 
         // If moved outside single click range, treat as target
         if (pos.blockId !== dragStartPos.blockId || pos.offset !== dragStartPos.offset) {
-            page.setSelection(dragStartPos, pos);
+            page.setSelection(dragStartPos, pos, page.selection?.isBlockSelection ?? false);
         } else {
-            page.setSelection(dragStartPos, null);
+            page.setSelection(dragStartPos, null, false);
         }
     }
 
@@ -501,6 +434,45 @@
     $effect(() => {
         if (!page.selection) {
             selectionRects = [];
+            return;
+        }
+
+        // Handle block selection: highlight entire block content areas (excluding handle buttons)
+        if (page.selection.isBlockSelection) {
+            const endPos = page.selection.end ?? page.selection.start;
+            const normalized = page.getNormalizedSelection({ ...page.selection, end: endPos });
+            if (!normalized) {
+                selectionRects = [];
+                return;
+            }
+
+            const startBlockIdx = page.blocks.findIndex(b => b.id === normalized.start.blockId);
+            const endBlockIdx = page.blocks.findIndex(b => b.id === normalized.end.blockId);
+
+            const rects: Rect[] = [];
+            for (let i = Math.min(startBlockIdx, endBlockIdx); i <= Math.max(startBlockIdx, endBlockIdx); i++) {
+                const block = page.blocks[i];
+                const blockEl = document.querySelector(`[data-ziro-block-id="${block.id}"]`) as HTMLElement;
+                if (!blockEl) continue;
+
+                const flexRow = blockEl.querySelector('.flex.flex-row') as HTMLElement;
+                if (!flexRow) continue;
+
+                const handleEl = blockEl.querySelector('[data-ziro-editor-block-handle]') as HTMLElement;
+                const handleWidth = handleEl ? handleEl.getBoundingClientRect().width : 0;
+                
+                const flexRect = flexRow.getBoundingClientRect();
+                rects.push({
+                    top: flexRect.top,
+                    bottom: flexRect.bottom,
+                    left: flexRect.left + handleWidth,
+                    right: flexRect.right,
+                    width: flexRect.width - handleWidth,
+                    height: flexRect.height
+                });
+            }
+
+            selectionRects = rects;
             return;
         }
 

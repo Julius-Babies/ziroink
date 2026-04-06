@@ -101,6 +101,61 @@ export class KeyboardHandler {
         return this.page.selection.end ?? this.page.selection.start;
     }
 
+    private handleSelectAll() {
+        const cursorPos = this.getCursorPosition();
+        if (!cursorPos) return;
+
+        const block = this.page.findBlock((b: any) => b.id === cursorPos.blockId);
+        if (!block) return;
+
+        const sel = this.page.selection;
+        const blockContentLength = block instanceof BaseTextBlock ? block.getContentLength() : 0;
+
+        // Stage 3: If single block is selected (isBlockSelection true and start==end), select all blocks
+        // This check MUST come first so we can advance from block selection to all blocks
+        if (sel?.isBlockSelection === true && sel.start.blockId === sel.end?.blockId && sel.start.offset === 0 && sel.end?.offset === 0) {
+            const contentBlocks = this.page.blocks.filter((_, i) => i > 0);
+            if (contentBlocks.length > 0) {
+                const firstContentBlock = contentBlocks[0];
+                const lastContentBlock = contentBlocks[contentBlocks.length - 1];
+
+                this.page.setSelection(
+                    { blockId: firstContentBlock.id, offset: 0 },
+                    { blockId: lastContentBlock.id, offset: lastContentBlock instanceof BaseTextBlock ? lastContentBlock.getContentLength() : 0 },
+                    true
+                );
+            }
+            return;
+        }
+
+        // Stage 1: If current block is textblock and not fully selected, select entire content
+        if (block instanceof BaseTextBlock) {
+            const isContentFullySelected = 
+                sel?.isBlockSelection === false &&
+                sel?.end !== null &&
+                sel.start.blockId === block.id &&
+                sel.end.blockId === block.id &&
+                sel.start.offset === 0 &&
+                sel.end.offset === blockContentLength;
+
+            if (!isContentFullySelected) {
+                this.page.setSelection(
+                    { blockId: block.id, offset: 0 },
+                    { blockId: block.id, offset: blockContentLength },
+                    false
+                );
+                return;
+            }
+        }
+
+        // Stage 2: If content already selected (or non-text block), select single block
+        this.page.setSelection(
+            { blockId: block.id, offset: 0 },
+            { blockId: block.id, offset: 0 },
+            true
+        );
+    }
+
     onCompositionEnd(e: CompositionEvent) {
         e.preventDefault();
         this.handleNewCharacter(e.data);
@@ -374,6 +429,12 @@ export class KeyboardHandler {
             }
         }
 
+        if (event.key === "a" && (isMac() ? event.metaKey : event.ctrlKey)) {
+            event.preventDefault();
+            this.handleSelectAll();
+            return;
+        }
+
         if (event.key === ")") {
             const cursorPos = this.getCursorPosition();
             if (!cursorPos) return;
@@ -445,6 +506,7 @@ export class KeyboardHandler {
                         this.page.toggleStyle("bold", {
                             forceTo: true,
                             onSelection: {
+                                isBlockSelection: false,
                                 start: {blockId: blockIdAtCursor, offset: contentStart},
                                 end: {blockId: blockIdAtCursor, offset: contentEnd},
                             }
@@ -481,6 +543,7 @@ export class KeyboardHandler {
                     this.page.toggleStyle("italic", {
                         forceTo: true,
                         onSelection: {
+                            isBlockSelection: false,
                             start: {blockId: blockIdAtCursor, offset: contentStart},
                             end: {blockId: blockIdAtCursor, offset: contentEnd},
                         }
@@ -527,6 +590,7 @@ export class KeyboardHandler {
                 this.page.toggleStyle(style, {
                     forceTo: true,
                     onSelection: {
+                        isBlockSelection: false,
                         start: { blockId: blockIdAtCursor, offset: contentStart },
                         end:   { blockId: blockIdAtCursor, offset: contentEnd },
                     }

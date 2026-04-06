@@ -12,9 +12,9 @@
     import {v4 as uuidv4} from "uuid";
     import buildTitle from "$lib/components/ui/buildTitle";
     import findUuidAtEnd from "$lib/util/findUuidAtEnd";
-    import {goto} from "$app/navigation";
     import {untrack} from "svelte";
     import {BaseTextBlock} from "$lib/ziro/BaseTextBlock";
+    import {replaceState} from "$app/navigation";
 
     let { data } = $props();
 
@@ -203,7 +203,7 @@
                     // We use history.replaceState directly for URL updates that don't need 
                     // SvelteKit's full navigation lifecycle, which is much safer for 
                     // keeping the current component state alive and preventing re-loads.
-                    window.history.replaceState(window.history.state, '', newUrl);
+                    replaceState(newUrl, window.history.state)
                 }
             });
         });
@@ -233,6 +233,7 @@
             <BlockRenderer
                     block={block}
                     page={page}
+                    isPageTitle={block.sortKey === "a0"}
             />
         {/each}
         <BottomWhitespace page={page}/>

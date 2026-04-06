@@ -90,7 +90,7 @@ export const POST = async ({ request, params }: RequestEvent) => {
     });
 
     // Check if the title block (first block) was modified and emit a sidebar update
-    const titleBlock = modifiedBlocks.find(b => b.sortKey === "a0" || b.variant === "h1");
+    const titleBlock = modifiedBlocks.find(b => b.sortKey === "a0");
     if (titleBlock) {
         let title = "Untitled";
         const factory = new ServerFactory();

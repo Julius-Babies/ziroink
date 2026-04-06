@@ -1,21 +1,23 @@
-import { generateKeyBetween } from "fractional-indexing";
+import {generateKeyBetween} from "fractional-indexing";
 import type {Block} from "$lib/ziro/Block";
-import {type BaseInline, BaseInlineText, type ListStyle, BaseTextBlock, BaseInlineSymbol} from "$lib/ziro/BaseTextBlock";
-import type { DocumentFactory } from "$lib/ziro/DocumentFactory";
-import type {BlockInsertPosition, PageEvent, StyleType} from "$lib/ziro/Events";
+import {type BaseInline, BaseInlineText, BaseTextBlock, type ListStyle} from "$lib/ziro/BaseTextBlock";
+import type {DocumentFactory} from "$lib/ziro/DocumentFactory";
+import type {PageEvent, StyleType} from "$lib/ziro/Events";
 
 export type Selection = {
+    isBlockSelection: boolean;
     start: SelectionPosition;
     end: SelectionPosition | null;
 }
 
 export type NonCollapsedSelection = {
+    isBlockSelection: boolean;
     start: SelectionPosition;
     end: SelectionPosition;
 }
 
 export function isNonCollapsedSelection(selection: null | Selection): selection is NonCollapsedSelection {
-    return selection !== null && selection.end !== null;
+    return selection !== null && selection.end !== null && selection.isBlockSelection === false;
 }
 
 export abstract class BasePage {
@@ -311,8 +313,8 @@ export abstract class BasePage {
         return this.blocks.find(predicate);
     }
 
-    setSelection(start: SelectionPosition, end: SelectionPosition | null) {
-        this.selection = { start: start, end: end };
+    setSelection(start: SelectionPosition, end: SelectionPosition | null, isBlockSelection: boolean = false) {
+        this.selection = { start: start, end: end, isBlockSelection: isBlockSelection };
         this.emit({
             type: "selection_changed",
             start,
