@@ -132,10 +132,7 @@ export const block = sqliteTable("block", {
     variant: text("variant").notNull().default("paragraph"),
     indentLevel: integer("indent_level").notNull().default(0),
     listType: text("list_type"),
-    listStyleType: text("list_style_type"),
-    listStylePrefix: text("list_style_prefix"),
-    listStyleSuffix: text("list_style_suffix"),
-    listStyleVariant: text("list_style_variant"),
+    listStyle: text("list_style", { mode: "json" }).$type<any>(),
     sortKey: text("sort_key").notNull(),
     content: text("content", { mode: "json" }).$type<any[]>(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })

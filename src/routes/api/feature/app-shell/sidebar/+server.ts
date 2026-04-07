@@ -48,7 +48,6 @@ export function GET({locals}: RequestEvent) {
             }
 
             let pageMetadataChangedListener = (event: ServerPageMetadataChangedEvent) => {
-                console.log("pageMetadataChangedListener", event);
                 if (!event.flat_title) return;
                 if (!event.affected_user_ids.includes(userId)) return;
 

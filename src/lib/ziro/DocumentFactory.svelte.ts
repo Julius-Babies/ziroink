@@ -25,16 +25,7 @@ export class DocumentFactory {
 
         if (obj.listType) {
             block.listType = obj.listType;
-            if (obj.listStyle) {
-                block.listStyle = obj.listStyle;
-            } else {
-                block.listStyle = {
-                    type: obj.listStyleType as any,
-                    prefix: obj.listStylePrefix,
-                    suffix: obj.listStyleSuffix,
-                    variant: obj.listStyleVariant
-                };
-            }
+            block.listStyle = obj.listStyle || null;
         } else {
             block.listType = null;
             block.listStyle = null;

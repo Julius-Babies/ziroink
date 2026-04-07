@@ -145,7 +145,7 @@ export class Page {
         const newBlock = this.factory.createTextBlock();
         newBlock.indentLevel = block.indentLevel;
         newBlock.listType = block.listType;
-        newBlock.listStyle = block.listStyle;
+        newBlock.listStyle = {...block.listStyle};
         if (newBlock.listStyle?.type === "checkbox") newBlock.listStyle.checked = false;
 
         const inlineAtCursor = block.findInlineAtOffset(offset);

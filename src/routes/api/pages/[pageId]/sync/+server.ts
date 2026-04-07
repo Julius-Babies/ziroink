@@ -44,10 +44,7 @@ export const POST = async ({ request, params }: RequestEvent) => {
                 variant: block.variant,
                 indentLevel: block.indentLevel || 0,
                 listType: block.listType || null,
-                listStyleType: block.listStyle?.type || null,
-                listStylePrefix: block.listStyle?.prefix || null,
-                listStyleSuffix: block.listStyle?.suffix || null,
-                listStyleVariant: block.listStyle?.variant || null,
+                listStyle: block.listStyle || null,
                 sortKey: block.sortKey || "a0",
                 content: block.inlines || [],
             })
@@ -57,10 +54,7 @@ export const POST = async ({ request, params }: RequestEvent) => {
                     variant: block.variant,
                     indentLevel: block.indentLevel || 0,
                     listType: block.listType || null,
-                    listStyleType: block.listStyle?.type || null,
-                    listStylePrefix: block.listStyle?.prefix || null,
-                    listStyleSuffix: block.listStyle?.suffix || null,
-                    listStyleVariant: block.listStyle?.variant || null,
+                    listStyle: block.listStyle || null,
                     sortKey: block.sortKey || "a0",
                     content: block.inlines || [],
                     updatedAt: new Date()

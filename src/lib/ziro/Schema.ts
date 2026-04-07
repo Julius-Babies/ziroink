@@ -21,11 +21,6 @@ export interface BlockObject {
     indentLevel: number;
     listType: "unordered" | "ordered" | null;
     listStyle?: ListStyle;
-    // Database specific fields that might be present
-    listStyleType?: any;
-    listStylePrefix?: any;
-    listStyleSuffix?: any;
-    listStyleVariant?: any;
     sortKey: string;
     inlines?: InlineObject[];
     content?: InlineObject[]; // Alternative field used in some contexts
