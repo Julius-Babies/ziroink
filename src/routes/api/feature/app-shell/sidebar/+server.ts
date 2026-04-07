@@ -2,7 +2,7 @@ import {pubsub} from '$lib/server/events';
 import type {RequestEvent} from '@sveltejs/kit';
 import {
     NEW_PAGE_EVENT_KEY,
-    PAGE_DELETED_EVENT_KEY,
+    PAGE_DELETED_EVENT_KEY, PAGE_METADATA_CHANGED_EVENT_KEY,
     type ServerNewPageEvent,
     type ServerPageDeleteEvent,
     type ServerPageMetadataChangedEvent
@@ -48,6 +48,7 @@ export function GET({locals}: RequestEvent) {
             }
 
             let pageMetadataChangedListener = (event: ServerPageMetadataChangedEvent) => {
+                console.log("pageMetadataChangedListener", event);
                 if (!event.flat_title) return;
                 if (!event.affected_user_ids.includes(userId)) return;
 
@@ -72,7 +73,7 @@ export function GET({locals}: RequestEvent) {
             }
 
             pubsub.on(NEW_PAGE_EVENT_KEY, newPageListener);
-            pubsub.on('page_metadata_changed', pageMetadataChangedListener);
+            pubsub.on(PAGE_METADATA_CHANGED_EVENT_KEY, pageMetadataChangedListener);
             pubsub.on(PAGE_DELETED_EVENT_KEY, pageDeletedListener);
 
             // Dummy keep-alive payload to prevent connection timeouts
@@ -83,7 +84,7 @@ export function GET({locals}: RequestEvent) {
             // Cleanup state attached to locals
             (locals as any).cleanupSync = () => {
                 pubsub.off(NEW_PAGE_EVENT_KEY, newPageListener);
-                pubsub.off('page_metadata_changed', pageMetadataChangedListener);
+                pubsub.off(PAGE_METADATA_CHANGED_EVENT_KEY, pageMetadataChangedListener);
                 pubsub.off(PAGE_DELETED_EVENT_KEY, pageDeletedListener)
                 clearInterval(interval);
             };

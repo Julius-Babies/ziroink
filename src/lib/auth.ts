@@ -8,6 +8,7 @@ export const auth = betterAuth({
     database: drizzleAdapter(db, {
         provider: "sqlite",
     }),
+    trustedOrigins: ["https://ziroink.werkbank.space"],
     emailAndPassword: {
         enabled: true,
     },
