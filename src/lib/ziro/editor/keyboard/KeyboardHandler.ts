@@ -687,6 +687,18 @@ export class KeyboardHandler {
                     this.page.cursorXPosition = null;
                     return;
                 }
+
+                const checkboxCheckedMatch = textBefore.match(/^\[x]$/)
+                const checkboxUncheckedMatch = textBefore.match(/^\[ ]$/)
+
+                if (checkboxCheckedMatch || checkboxUncheckedMatch) {
+                    let listStyle: ListStyle = { type: "checkbox", checked: !checkboxUncheckedMatch }
+                    this.page.updateBlockList(block.id, "unordered", listStyle);
+                    this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
+                    this.page.setSelection({blockId: block.id, offset: 0}, null);
+                    this.page.cursorXPosition = null;
+                    return;
+                }
             }
         }
 

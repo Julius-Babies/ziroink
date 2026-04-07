@@ -6,6 +6,7 @@ export type TextBlockVariant = "paragraph" | "h1" | "h2" | "h3" | "h4" | "h5" | 
 export type ListStyle = { type: "bullet" } |
     { type: "dash" } |
     { type: "arrow" } |
+    { type: "checkbox", checked: boolean } |
     { type: "ordered", prefix: "(" | "", suffix: "." | "" | ")", variant: "letter_uppercase" | "letter_lowercase" | "roman_uppercase" | "roman_lowercase" | "number" }
 
 export class TextBlock implements Block {

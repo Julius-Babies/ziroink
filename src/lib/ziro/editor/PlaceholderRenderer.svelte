@@ -10,7 +10,9 @@
 </script>
 
 <div class="absolute left-0 top-0 text-gray-400 pointer-events-none select-none">
-    {#if block.variant === "paragraph"}
+    {#if block.listStyle?.type === "checkbox"}
+        To-do hinzufügen
+    {:else if block.variant === "paragraph"}
         Tippen, oder <KbdGroup><Kbd>/</Kbd></KbdGroup> für Blöcke
     {:else if block.variant === "h1"}
         Hauptüberschrift
