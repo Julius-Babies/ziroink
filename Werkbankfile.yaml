@@ -1,0 +1,14 @@
+project:
+  name: "Ziro"
+  id: "ziroink"
+
+services:
+  - name: webapp
+    modes:
+      local:
+        port: 5173
+
+dependencies:
+  mongodb:
+    databases:
+      - ziro
