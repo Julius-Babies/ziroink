@@ -25,4 +25,4 @@
     }
 </script>
 
-<button class="h-40 flex w-full flex-1 min-h-24" onclick={onClick} title="Neuer Textblock"></button>
+<button class="h-40 flex w-full flex-1 min-h-24 cursor-text" onclick={onClick} title="Neuer Textblock"></button>

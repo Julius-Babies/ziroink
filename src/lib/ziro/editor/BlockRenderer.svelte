@@ -69,7 +69,7 @@
                 {#if (block.listType)}
                     <ListIndicator block={block} page={page} />
                 {/if}
-                <div class="grow relative min-h-[1.5em]">
+                <div class="grow relative min-h-[1.5em] cursor-text">
                     {#if showPlaceholder}
                         <PlaceholderRenderer block={block} />
                     {/if}
