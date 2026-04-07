@@ -49,6 +49,7 @@
             emptyInl.sortKey = "a0";
             titleBlock.inlines = [emptyInl];
             p.setBlocks([titleBlock]);
+            page.setSelection({blockId: titleBlock.id, offset: 0}, null, false);
         }
         
         p.clearEventQueue();
