@@ -1,7 +1,6 @@
-import {isNonCollapsedSelection, type BasePage} from "$lib/ziro/BasePage.js";
-import {type BaseInline, BaseInlineSymbol, BaseInlineText, type ListStyle, BaseTextBlock} from "$lib/ziro/BaseTextBlock.js";
+import {type Page, isNonCollapsedSelection} from "$lib/ziro/Page.svelte";
+import {TextBlock, type ListStyle} from "$lib/ziro/TextBlock.svelte";
 import {buildOffsetPositions, findClosestLine, handleVerticalNavigation} from "$lib/ziro/VerticalNavigation";
-import {PasteHandler} from "$lib/ziro/PasteHandler";
 import {isArrowKey, isInsertLineBreak, isNewBlock, isToggleStyle} from "$lib/ziro/editor/keyboard/getEventAction";
 
 const WORD_SEPARATORS = [" ", "|", ".", ",", ";", ":", "!", "?", "(", ")", "[", "]", "{", "}", "\"", "'"];
@@ -17,9 +16,9 @@ function isMac(): boolean {
 }
 
 export class KeyboardHandler {
-    page: BasePage;
+    page: Page;
 
-    constructor(page: BasePage) {
+    constructor(page: Page) {
         this.page = page;
     }
 
@@ -35,7 +34,7 @@ export class KeyboardHandler {
                 const blockIdAtCursor = this.page.selection?.start.blockId;
                 if (!blockIdAtCursor) return;
                 const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor);
-                if (!block || !(block instanceof BaseTextBlock)) return;
+                if (!block || !(block instanceof TextBlock)) return;
 
                 const cursorOffset = this.page.selection!.start.offset;
 
@@ -84,7 +83,7 @@ export class KeyboardHandler {
         }
     }
 
-    private getTargetLineOffset(block: BaseTextBlock, currentOffset: number, isStart: boolean): number {
+    private getTargetLineOffset(block: TextBlock, currentOffset: number, isStart: boolean): number {
         const positions = buildOffsetPositions(block);
         const currentPos = positions.get(currentOffset);
         if (currentPos) {
@@ -109,7 +108,7 @@ export class KeyboardHandler {
         if (!block) return;
 
         const sel = this.page.selection;
-        const blockContentLength = block instanceof BaseTextBlock ? block.getContentLength() : 0;
+        const blockContentLength = block instanceof TextBlock ? block.getContentLength() : 0;
 
         // Stage 3: If single block is selected (isBlockSelection true and start==end), select all blocks
         // This check MUST come first so we can advance from block selection to all blocks
@@ -121,7 +120,7 @@ export class KeyboardHandler {
 
                 this.page.setSelection(
                     { blockId: firstContentBlock.id, offset: 0 },
-                    { blockId: lastContentBlock.id, offset: lastContentBlock instanceof BaseTextBlock ? lastContentBlock.getContentLength() : 0 },
+                    { blockId: lastContentBlock.id, offset: lastContentBlock instanceof TextBlock ? lastContentBlock.getContentLength() : 0 },
                     true
                 );
             }
@@ -129,7 +128,7 @@ export class KeyboardHandler {
         }
 
         // Stage 1: If current block is textblock and not fully selected, select entire content
-        if (block instanceof BaseTextBlock) {
+        if (block instanceof TextBlock) {
             const isContentFullySelected = 
                 sel?.isBlockSelection === false &&
                 sel?.end !== null &&
@@ -192,7 +191,7 @@ export class KeyboardHandler {
             const cursorPos = this.getCursorPosition();
             if (!cursorPos) return;
             const block = this.page.findBlock((b: any) => b.id === cursorPos.blockId);
-            if (block instanceof BaseTextBlock) {
+            if (block instanceof TextBlock) {
                 if (event.shiftKey) {
                     this.page.updateBlockIndent(block.id, -1);
                 } else if (cursorPos.offset === 0) {
@@ -208,7 +207,7 @@ export class KeyboardHandler {
             const blockIdAtCursor = this.page.selection?.start.blockId;
             if (!blockIdAtCursor) return;
             const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor);
-            if (!block || !(block instanceof BaseTextBlock)) return;
+            if (!block || !(block instanceof TextBlock)) return;
 
             this.deleteSelection();
 
@@ -227,7 +226,7 @@ export class KeyboardHandler {
             const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor)
             if (!block) return;
 
-            if (block instanceof BaseTextBlock) {
+            if (block instanceof TextBlock) {
                 if (block.getVisualText() === "") {
                     if (block.listType) {
                         this.page.updateBlockList(block.id, null, null);
@@ -240,7 +239,7 @@ export class KeyboardHandler {
                 }
             }
 
-            if (block instanceof BaseTextBlock) {
+            if (block instanceof TextBlock) {
                 const cursorOffset = this.page.selection!.start.offset;
 
                 // Title block special handling
@@ -282,7 +281,7 @@ export class KeyboardHandler {
             const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor);
             if (!block) return;
 
-            if (block instanceof BaseTextBlock) {
+            if (block instanceof TextBlock) {
                 if (cursorOffset === 0) {
                     if (block.listType) {
                         this.page.updateBlockList(block.id, null, null);
@@ -303,12 +302,12 @@ export class KeyboardHandler {
                     if (index <= 0) return;
 
                     const previousBlock = this.page.blocks[index - 1];
-                    if (previousBlock instanceof BaseTextBlock) {
+                    if (previousBlock instanceof TextBlock) {
                         const prevContentLength = this.page.mergeBlocks(previousBlock.id, block.id);
                         this.page.setSelection({blockId: previousBlock.id, offset: prevContentLength}, null);
                     } else {
                         this.page.blocks = this.page.blocks.filter(b => b.id !== block.id);
-                        if (previousBlock instanceof BaseTextBlock) {
+                        if (previousBlock instanceof TextBlock) {
                             this.page.setSelection({
                                 blockId: previousBlock.id,
                                 offset: previousBlock.getContentLength()
@@ -358,7 +357,7 @@ export class KeyboardHandler {
                 const cursorOffset = cursorPos.offset;
                 if (!blockIdAtCursor) return;
                 const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor);
-                if (!block || !(block instanceof BaseTextBlock)) return;
+                if (!block || !(block instanceof TextBlock)) return;
 
                 if (event.key === "ArrowLeft" || event.key === "Home") {
                     const useLineJump = isMac() ? event.metaKey : (event.key === "Home");
@@ -374,7 +373,7 @@ export class KeyboardHandler {
                             const indexOfBlock = this.page.blocks.indexOf(block);
                             if (indexOfBlock > 0) {
                                 const previousBlock = this.page.blocks[indexOfBlock - 1];
-                                if (previousBlock instanceof BaseTextBlock) {
+                                if (previousBlock instanceof TextBlock) {
                                     const prevText = previousBlock.getVisualText();
                                     const prevWordOffset = findPrevWordBoundary(prevText, prevText.length);
                                     this.updateSelection(previousBlock.id, prevWordOffset, isShift);
@@ -387,7 +386,7 @@ export class KeyboardHandler {
                         const indexOfBlock = this.page.blocks.indexOf(block);
                         if (indexOfBlock > 0) {
                             const previousBlock = this.page.blocks[indexOfBlock - 1];
-                            if (previousBlock instanceof BaseTextBlock) {
+                            if (previousBlock instanceof TextBlock) {
                                 this.updateSelection(previousBlock.id, previousBlock.getContentLength(), isShift);
                             }
                         }
@@ -407,7 +406,7 @@ export class KeyboardHandler {
                             const indexOfBlock = this.page.blocks.indexOf(block);
                             if (indexOfBlock < this.page.blocks.length - 1) {
                                 const nextBlock = this.page.blocks[indexOfBlock + 1];
-                                if (nextBlock instanceof BaseTextBlock) {
+                                if (nextBlock instanceof TextBlock) {
                                     const nextText = nextBlock.getVisualText();
                                     const nextWordOffset = findNextWordBoundary(nextText, 0);
                                     this.updateSelection(nextBlock.id, nextWordOffset, isShift);
@@ -420,7 +419,7 @@ export class KeyboardHandler {
                         const indexOfBlock = this.page.blocks.indexOf(block);
                         if (indexOfBlock < this.page.blocks.length - 1) {
                             const nextBlock = this.page.blocks[indexOfBlock + 1];
-                            if (nextBlock instanceof BaseTextBlock) {
+                            if (nextBlock instanceof TextBlock) {
                                 this.updateSelection(nextBlock.id, 0, isShift);
                             }
                         }
@@ -440,7 +439,7 @@ export class KeyboardHandler {
             if (!cursorPos) return;
             const blockIdAtCursor = cursorPos.blockId;
             const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor);
-            if (!block || !(block instanceof BaseTextBlock)) return;
+            if (!block || !(block instanceof TextBlock)) return;
 
             const textBeforeCursor = block.getVisualText().slice(0, cursorPos.offset);
             if (textBeforeCursor.endsWith("(/")) {
@@ -487,7 +486,7 @@ export class KeyboardHandler {
         const blockIdAtCursor = this.page.selection?.start.blockId;
         if (!blockIdAtCursor) return;
         const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor);
-        if (!block || !(block instanceof BaseTextBlock)) return;
+        if (!block || !(block instanceof TextBlock)) return;
 
         const cursorOffset = this.page.selection!.start.offset;
 
@@ -722,17 +721,3 @@ function findNextWordBoundary(text: string, fromOffset: number): number {
 
     return fromOffset + i;
 }
-
-const getDeadChar = (event: KeyboardEvent): string | null => {
-    if (["^", "´", "`", "~"].includes(event.key)) return event.key;
-
-    console.log(event.code)
-
-    const map: Record<string, string> = {
-        "Quote": "´",
-        "Backquote": "`",
-        "BracketLeft": "^",
-        "BracketRight": "~",
-    };
-    return map[event.code] || null;
-};

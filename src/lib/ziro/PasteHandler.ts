@@ -1,6 +1,6 @@
-import type {BasePage} from "$lib/ziro/BasePage";
-import {BaseInlineSymbol, BaseInlineText, type BaseInline, BaseTextBlock} from "$lib/ziro/BaseTextBlock";
-import type {ListStyle, BaseTextBlockVariant} from "$lib/ziro/BaseTextBlock";
+import type {Page} from "$lib/ziro/Page.svelte";
+import type {TextBlockVariant, ListStyle} from "$lib/ziro/TextBlock.svelte";
+import {type BaseInline, TextBlock} from "$lib/ziro/TextBlock.svelte";
 
 function isEmoji(str: string): boolean {
     const emojiRegex = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F/u;
@@ -12,8 +12,6 @@ function parseInlineMarkdown(text: string, factory: any): BaseInline[] {
     let remaining = text;
 
     while (remaining.length > 0) {
-        let match: { type: string; content: string; prefixLen: number; suffixLen: number } | null = null;
-
         const patterns = [
             { regex: /\*\*(.+?)\*\*/, type: "bold" },
             { regex: /__(.+?)__/, type: "underline" },
@@ -108,7 +106,7 @@ function segmentTextToInlines(text: string, factory: any): BaseInline[] {
 
 type ParsedLine = {
     text: string;
-    variant: BaseTextBlockVariant;
+    variant: TextBlockVariant;
     listType: "unordered" | "ordered" | null;
     listStyle: ListStyle | null;
 };
@@ -118,7 +116,7 @@ function parseLineToBlockInfo(line: string): ParsedLine {
     if (headingMatch) {
         return {
             text: headingMatch[2],
-            variant: `h${headingMatch[1].length}` as BaseTextBlockVariant,
+            variant: `h${headingMatch[1].length}` as TextBlockVariant,
             listType: null,
             listStyle: null,
         };
@@ -166,14 +164,14 @@ function parseLineToBlockInfo(line: string): ParsedLine {
 }
 
 export class PasteHandler {
-    page: BasePage;
+    page: Page;
 
-    constructor(page: BasePage) {
+    constructor(page: Page) {
         this.page = page;
     }
 
     fromPlaintext(plainText: string): {
-        resultingBlocks: BaseTextBlock[];
+        resultingBlocks: TextBlock[];
     } {
         const lines = plainText.split("\n\n");
         const parsedLines = lines.map(parseLineToBlockInfo);
@@ -182,9 +180,9 @@ export class PasteHandler {
         const currentBlock = this.page.selection?.start.blockId
             ? this.page.findBlock(b => b.id === this.page.selection!.start.blockId)
             : null;
-        const currentIndent = currentBlock instanceof BaseTextBlock ? currentBlock.indentLevel : 0;
+        const currentIndent = currentBlock instanceof TextBlock ? currentBlock.indentLevel : 0;
 
-        const resultingBlocks: BaseTextBlock[] = [];
+        const resultingBlocks: TextBlock[] = [];
 
         for (const parsed of parsedLines) {
             const block = this.page.factory.createTextBlock();

@@ -1,22 +1,25 @@
-import { generateKeyBetween } from 'fractional-indexing';
+import {generateKeyBetween} from 'fractional-indexing';
 import type {Block} from "$lib/ziro/Block";
 
-export type BaseTextBlockVariant = "paragraph" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+export type TextBlockVariant = "paragraph" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
 export type ListStyle = { type: "bullet" } |
     { type: "dash" } |
     { type: "arrow" } |
     { type: "ordered", prefix: "(" | "", suffix: "." | "" | ")", variant: "letter_uppercase" | "letter_lowercase" | "roman_uppercase" | "roman_lowercase" | "number" }
 
-export abstract class BaseTextBlock implements Block {
-    abstract sortKey: string;
+export class TextBlock implements Block {
+    id: string;
+    sortKey: string = $state("");
+    inlines: BaseInline[] = $state([]);
+    variant: TextBlockVariant = $state("paragraph");
+    indentLevel: number = $state(0);
+    listType: "unordered" | "ordered" | null = $state(null);
+    listStyle: ListStyle | null = $state(null);
 
-    abstract id: string;
-    abstract inlines: BaseInline[];
-    abstract variant: BaseTextBlockVariant;
-    abstract indentLevel: number;
-    abstract listType: "unordered" | "ordered" | null;
-    abstract listStyle: ListStyle | null;
+    constructor(id: string) {
+        this.id = id;
+    }
 
     toObject() {
         return {
@@ -39,14 +42,14 @@ export abstract class BaseTextBlock implements Block {
         let remaining = offset;
         for (let i = 0; i < this.inlines.length; i++) {
             const inline = this.inlines[i];
-            const inlineContentLength = inline instanceof BaseInlineText ? inline.content.length : 1;
+            const inlineContentLength = inline instanceof InlineText ? inline.content.length : 1;
 
             // If we have remaining offset left in this inline, we belong here.
             // If we are at the EXACT end of this inline (remaining === inlineContentLength):
             // 1. If it's the LAST inline, we must return this.
             // 2. If it's a TEXT inline, we prefer to stay at the end of it for a more stable caret
             //    rather than jumping to offset 0 of the next inline (which might be a symbol).
-            if (remaining < inlineContentLength || (remaining === inlineContentLength && (i === this.inlines.length - 1 || inline instanceof BaseInlineText))) {
+            if (remaining < inlineContentLength || (remaining === inlineContentLength && (i === this.inlines.length - 1 || inline instanceof InlineText))) {
                 return {inline, offsetInInline: remaining};
             }
 
@@ -54,14 +57,14 @@ export abstract class BaseTextBlock implements Block {
         }
 
         const lastInline = this.inlines[this.inlines.length - 1];
-        const lastLength = lastInline instanceof BaseInlineText ? lastInline.content.length : 1;
+        const lastLength = lastInline instanceof InlineText ? lastInline.content.length : 1;
         return {inline: lastInline, offsetInInline: lastLength};
     }
 
     findOffsetByInline(inlineId: string): number {
         let result = 0;
         for (const inline of this.inlines) {
-            const inlineContentLength = inline instanceof BaseInlineText ? inline.content.length : 1;
+            const inlineContentLength = inline instanceof InlineText ? inline.content.length : 1;
             if (inline.id !== inlineId) {
                 result += inlineContentLength;
                 continue;
@@ -75,14 +78,14 @@ export abstract class BaseTextBlock implements Block {
 
     getContentLength(): number {
         return this.inlines.reduce((acc, inline) => {
-            const inlineContentLength = inline instanceof BaseInlineText ? inline.content.length : 1;
+            const inlineContentLength = inline instanceof InlineText ? inline.content.length : 1;
             return acc + inlineContentLength;
         }, 0);
     }
 
     getVisualText(): string {
         return this.inlines.reduce((acc, inline) => {
-            if (inline instanceof BaseInlineText) {
+            if (inline instanceof InlineText) {
                 return acc + inline.content
             } else return acc + "|"
         }, "")
@@ -90,7 +93,7 @@ export abstract class BaseTextBlock implements Block {
 
     getAsciiText(): string {
         return this.inlines.reduce((acc, inline) => {
-            if (inline instanceof BaseInlineText) {
+            if (inline instanceof InlineText) {
                 return acc + inline.content;
             }
 
@@ -110,7 +113,7 @@ export abstract class BaseTextBlock implements Block {
         const merged: BaseInline[] = [];
         for (const inline of this.inlines) {
             const last = merged.length > 0 ? merged[merged.length - 1] : null;
-            if (last instanceof BaseInlineText && inline instanceof BaseInlineText && last.isSameStyleAs(inline)) {
+            if (last instanceof InlineText && inline instanceof InlineText && last.isSameStyleAs(inline)) {
                 last.content += inline.content;
             } else {
                 merged.push(inline);
@@ -137,10 +140,18 @@ export abstract class BaseInline {
     abstract toDisplayText(): string
 }
 
-export abstract class BaseInlineSymbol extends BaseInline {
-    abstract id: string;
-    abstract sortKey: string;
-    abstract symbol: BaseInlineSymbolVariant;
+export type InlineSymbolVariant = {type: "check"} | {type: "x"} | {type: "question_mark"} | {type: "emoji", emoji: string}
+
+export class InlineSymbol extends BaseInline {
+    id: string;
+    sortKey: string = $state("");
+    symbol: InlineSymbolVariant = $state({type: "x"});
+
+    constructor(id: string, symbol: InlineSymbolVariant) {
+        super();
+        this.id = id;
+        this.symbol = symbol;
+    }
 
     toObject() {
         return {
@@ -160,17 +171,20 @@ export abstract class BaseInlineSymbol extends BaseInline {
     }
 }
 
-export type BaseInlineSymbolVariant = {type: "check"} | {type: "x"} | {type: "question_mark"} | {type: "emoji", emoji: string}
+export class InlineText extends BaseInline {
+    id: string;
+    sortKey: string = $state("");
+    content: string = $state("");
+    bold: boolean = $state(false);
+    italic: boolean = $state(false);
+    underline: boolean = $state(false);
+    strikethrough: boolean = $state(false);
+    code: boolean = $state(false);
 
-export abstract class BaseInlineText extends BaseInline {
-    abstract id: string;
-    abstract sortKey: string;
-    abstract content: string;
-    abstract bold: boolean;
-    abstract italic: boolean;
-    abstract underline: boolean;
-    abstract strikethrough: boolean;
-    abstract code: boolean;
+    constructor(id: string) {
+        super();
+        this.id = id;
+    }
 
     toObject() {
         return {
@@ -190,7 +204,7 @@ export abstract class BaseInlineText extends BaseInline {
      * Checks if this inline has the same style as another inline. This is used to determine if two inlines can be merged together.
      * @param other
      */
-    isSameStyleAs(other: BaseInlineText): boolean {
+    isSameStyleAs(other: InlineText): boolean {
         return this.bold === other.bold &&
             this.italic === other.italic &&
             this.underline === other.underline &&

@@ -1,7 +1,7 @@
 import {generateKeyBetween} from "fractional-indexing";
 import type {Block} from "$lib/ziro/Block";
-import {type BaseInline, BaseInlineText, BaseTextBlock, type ListStyle} from "$lib/ziro/BaseTextBlock";
-import type {DocumentFactory} from "$lib/ziro/DocumentFactory";
+import {type BaseInline, InlineText, TextBlock, type ListStyle} from "$lib/ziro/TextBlock.svelte";
+import {DocumentFactory} from "$lib/ziro/DocumentFactory.svelte";
 import type {PageEvent, StyleType} from "$lib/ziro/Events";
 
 export type Selection = {
@@ -17,15 +17,16 @@ export type NonCollapsedSelection = {
 }
 
 export function isNonCollapsedSelection(selection: null | Selection): selection is NonCollapsedSelection {
-    return selection !== null && selection.end !== null && selection.isBlockSelection === false;
+    return selection !== null && selection.end !== null && !selection.isBlockSelection;
 }
 
-export abstract class BasePage {
-    abstract blocks: Block[];
-    abstract selection: null | Selection;
-    abstract cursorXPosition: number | null;
-    abstract eventQueue: PageEvent[];
-    abstract factory: DocumentFactory;
+export class Page {
+    blocks: Block[] = $state([]);
+    selection: null | Selection = $state(null);
+    cursorXPosition: number | null = $state(null);
+    eventQueue: PageEvent[] = $state([]);
+
+    factory = new DocumentFactory();
 
     private subscribers: ((event: PageEvent) => void)[] = [];
 
@@ -51,7 +52,7 @@ export abstract class BasePage {
         if (this.blocks.length > 0 && this.blocks[0].id === blockId) return; // Title block cannot be indented
         
         const block = this.blocks.find(b => b.id === blockId);
-        if (block && block instanceof BaseTextBlock) {
+        if (block && block instanceof TextBlock) {
             const oldIndent = block.indentLevel;
             block.indentLevel = Math.max(0, Math.min(4, block.indentLevel + delta));
             this.emit({
@@ -67,7 +68,7 @@ export abstract class BasePage {
         if (this.blocks.length > 0 && this.blocks[0].id === blockId) return; // Title block cannot be a list
 
         const block = this.blocks.find(b => b.id === blockId);
-        if (block && block instanceof BaseTextBlock) {
+        if (block && block instanceof TextBlock) {
             const oldListType = block.listType;
             const oldListStyle = block.listStyle;
             block.listType = listType;
@@ -90,7 +91,7 @@ export abstract class BasePage {
         if (this.blocks.length > 0 && this.blocks[0].id === blockId) return; // Title block variant cannot be changed
 
         const block = this.blocks.find(b => b.id === blockId);
-        if (block && block instanceof BaseTextBlock) {
+        if (block && block instanceof TextBlock) {
             const oldVariant = block.variant;
             block.variant = variant;
             this.emit({
@@ -126,7 +127,6 @@ export abstract class BasePage {
     }
 
     setBlocks(blocks: Block[]) {
-        const oldIds = this.blocks.map(b => b.id);
         this.blocks = blocks;
         this.emit({ type: "blocks_set", blockIds: blocks.map(b => b.id) });
     }
@@ -138,7 +138,7 @@ export abstract class BasePage {
         }
 
         const block = this.blocks[blockIndex];
-        if (!(block instanceof BaseTextBlock)) {
+        if (!(block instanceof TextBlock)) {
             throw new Error("Cannot split non-text block");
         }
 
@@ -150,25 +150,25 @@ export abstract class BasePage {
         const inlineAtCursor = block.findInlineAtOffset(offset);
         const inlineIndex = block.inlines.indexOf(inlineAtCursor.inline);
 
-        if (inlineAtCursor.inline instanceof BaseInlineText) {
+        if (inlineAtCursor.inline instanceof InlineText) {
             const textBeforeCursor = inlineAtCursor.inline.content.slice(0, inlineAtCursor.offsetInInline);
             const textAfterCursor = inlineAtCursor.inline.content.slice(inlineAtCursor.offsetInInline);
 
             if (textAfterCursor !== "") {
                 const newBaseInline = this.factory.createInlineText();
                 newBaseInline.content = textAfterCursor;
-                BaseInlineText.prototype.isSameStyleAs.call(newBaseInline, inlineAtCursor.inline);
-                newBaseInline.bold = (inlineAtCursor.inline as BaseInlineText).bold;
-                newBaseInline.italic = (inlineAtCursor.inline as BaseInlineText).italic;
-                newBaseInline.underline = (inlineAtCursor.inline as BaseInlineText).underline;
-                newBaseInline.strikethrough = (inlineAtCursor.inline as BaseInlineText).strikethrough;
-                newBaseInline.code = (inlineAtCursor.inline as BaseInlineText).code;
+                InlineText.prototype.isSameStyleAs.call(newBaseInline, inlineAtCursor.inline);
+                newBaseInline.bold = (inlineAtCursor.inline as InlineText).bold;
+                newBaseInline.italic = (inlineAtCursor.inline as InlineText).italic;
+                newBaseInline.underline = (inlineAtCursor.inline as InlineText).underline;
+                newBaseInline.strikethrough = (inlineAtCursor.inline as InlineText).strikethrough;
+                newBaseInline.code = (inlineAtCursor.inline as InlineText).code;
                 newBlock.inlines = [...newBlock.inlines, newBaseInline];
             }
 
             newBlock.inlines = [...newBlock.inlines, ...block.inlines.slice(inlineIndex + 1)];
             block.inlines = block.inlines.slice(0, inlineIndex + 1);
-            (inlineAtCursor.inline as BaseInlineText).content = textBeforeCursor;
+            (inlineAtCursor.inline as InlineText).content = textBeforeCursor;
         } else {
             newBlock.inlines = [...block.inlines.slice(inlineIndex + 1)];
             block.inlines = block.inlines.slice(0, inlineIndex + 1);
@@ -218,7 +218,7 @@ export abstract class BasePage {
             throw new Error("Failed to find source block with id " + sourceBlockId);
         }
 
-        if (!(targetBlock instanceof BaseTextBlock) || !(sourceBlock instanceof BaseTextBlock)) {
+        if (!(targetBlock instanceof TextBlock) || !(sourceBlock instanceof TextBlock)) {
             throw new Error("Can only merge text blocks");
         }
 
@@ -246,69 +246,6 @@ export abstract class BasePage {
         this.insertBlock(block, { type: "end" });
         return block.id;
     }
-
-    insertBaseInlinesIntoBlock(blockId: string, inlines: BaseInline[], atOffset: number) {
-        const block = this.blocks.find(b => b.id === blockId);
-        if (!block || !(block instanceof BaseTextBlock)) return;
-
-        const oldInlines = block.inlines.map(i => ({ id: i.id }));
-
-        const { inline: targetBaseInline, offsetInInline } = block.findInlineAtOffset(atOffset);
-        const targetIndex = block.inlines.indexOf(targetBaseInline);
-
-        if (targetBaseInline instanceof BaseInlineText) {
-            const textBefore = targetBaseInline.content.substring(0, offsetInInline);
-            const textAfter = targetBaseInline.content.substring(offsetInInline);
-
-            const newInlines: BaseInline[] = [];
-            if (textBefore.length > 0) {
-                const beforeBaseInline = this.factory.createInlineText();
-                beforeBaseInline.content = textBefore;
-                beforeBaseInline.bold = (targetBaseInline as BaseInlineText).bold;
-                beforeBaseInline.italic = (targetBaseInline as BaseInlineText).italic;
-                beforeBaseInline.underline = (targetBaseInline as BaseInlineText).underline;
-                beforeBaseInline.strikethrough = (targetBaseInline as BaseInlineText).strikethrough;
-                beforeBaseInline.code = (targetBaseInline as BaseInlineText).code;
-                newInlines.push(beforeBaseInline);
-            }
-
-            newInlines.push(...inlines);
-
-            if (textAfter.length > 0) {
-                const afterBaseInline = this.factory.createInlineText();
-                afterBaseInline.content = textAfter;
-                afterBaseInline.bold = (targetBaseInline as BaseInlineText).bold;
-                afterBaseInline.italic = (targetBaseInline as BaseInlineText).italic;
-                afterBaseInline.underline = (targetBaseInline as BaseInlineText).underline;
-                afterBaseInline.strikethrough = (targetBaseInline as BaseInlineText).strikethrough;
-                afterBaseInline.code = (targetBaseInline as BaseInlineText).code;
-                newInlines.push(afterBaseInline);
-            }
-
-            block.inlines = [
-                ...block.inlines.slice(0, targetIndex),
-                ...newInlines,
-                ...block.inlines.slice(targetIndex + 1)
-            ];
-        } else {
-            const insertIndex = offsetInInline === 0 ? targetIndex : targetIndex + 1;
-            block.inlines = [
-                ...block.inlines.slice(0, insertIndex),
-                ...inlines,
-                ...block.inlines.slice(insertIndex)
-            ];
-        }
-
-        block._mergeAdjacentBaseInlines();
-
-        this.emit({
-            type: "inlines_replaced",
-            blockId,
-            oldInlines,
-            newInlines: block.inlines.map(i => ({ id: i.id }))
-        });
-    }
-
     findBlock(predicate: (block: Block) => boolean) {
         return this.blocks.find(predicate);
     }
@@ -356,7 +293,7 @@ export abstract class BasePage {
         let allHaveStyle = true;
         for (let i = startIdx; i <= endIdx; i++) {
             const block = this.blocks[i];
-            if (!(block instanceof BaseTextBlock)) continue;
+            if (!(block instanceof TextBlock)) continue;
 
             const isFirst = i === startIdx;
             const isLast = i === endIdx;
@@ -373,7 +310,7 @@ export abstract class BasePage {
 
             for (let j = startBaseInlineIdx; j <= endBaseInlineIdx; j++) {
                 const inline = block.inlines[j];
-                const length = inline instanceof BaseInlineText ? inline.content.length : 1;
+                const length = inline instanceof InlineText ? inline.content.length : 1;
 
                 if (j === endBaseInlineIdx && inlineEnd.offsetInInline === 0 && j > startBaseInlineIdx) {
                     continue;
@@ -382,7 +319,7 @@ export abstract class BasePage {
                     continue;
                 }
 
-                if (inline instanceof BaseInlineText) {
+                if (inline instanceof InlineText) {
                     if (!inline[style]) {
                         allHaveStyle = false;
                         break;
@@ -396,7 +333,7 @@ export abstract class BasePage {
 
         for (let i = startIdx; i <= endIdx; i++) {
             const block = this.blocks[i];
-            if (!(block instanceof BaseTextBlock)) continue;
+            if (!(block instanceof TextBlock)) continue;
 
             const isFirst = i === startIdx;
             const isLast = i === endIdx;
@@ -417,7 +354,7 @@ export abstract class BasePage {
         }
     }
 
-    private applyStyleToBlockRange(block: BaseTextBlock, startOffset: number, endOffset: number, style: StyleType, value: boolean) {
+    private applyStyleToBlockRange(block: TextBlock, startOffset: number, endOffset: number, style: StyleType, value: boolean) {
         const inlineStart = block.findInlineAtOffset(startOffset);
         const inlineEnd = block.findInlineAtOffset(endOffset);
 
@@ -429,7 +366,7 @@ export abstract class BasePage {
 
         for (let i = 0; i < block.inlines.length; i++) {
             const inline = block.inlines[i];
-            if (!(inline instanceof BaseInlineText)) {
+            if (!(inline instanceof InlineText)) {
                 if (i >= startIdx) {
                     currentKey = inline.sortKey = generateKeyBetween(currentKey, null);
                 }
@@ -524,7 +461,7 @@ export abstract class BasePage {
         block._mergeAdjacentBaseInlines();
     }
 
-    private copyStyles(from: BaseInlineText, to: BaseInlineText) {
+    private copyStyles(from: InlineText, to: InlineText) {
         to.bold = from.bold;
         to.italic = from.italic;
         to.underline = from.underline;
@@ -534,12 +471,12 @@ export abstract class BasePage {
 
     insertInlineAtOffset(blockId: string, offset: number, inline: BaseInline) {
         const block = this.blocks.find(b => b.id === blockId);
-        if (!block || !(block instanceof BaseTextBlock)) return;
+        if (!block || !(block instanceof TextBlock)) return;
 
         const { inline: targetBaseInline, offsetInInline } = block.findInlineAtOffset(offset);
         const index = block.inlines.findIndex(i => i.id === targetBaseInline.id);
 
-        if (targetBaseInline instanceof BaseInlineText) {
+        if (targetBaseInline instanceof InlineText) {
             const textBefore = targetBaseInline.content.slice(0, offsetInInline);
             const textAfter = targetBaseInline.content.slice(offsetInInline);
             
@@ -591,7 +528,7 @@ export abstract class BasePage {
         }
         
         const newIndex = block.inlines.findIndex(i => i.id === inline.id);
-        if (newIndex === block.inlines.length - 1 || !(block.inlines[newIndex + 1] instanceof BaseInlineText)) {
+        if (newIndex === block.inlines.length - 1 || !(block.inlines[newIndex + 1] instanceof InlineText)) {
             const emptyInline = this.factory.createInlineText();
             const nextKey = newIndex + 1 < block.inlines.length ? block.inlines[newIndex + 1].sortKey : null;
             emptyInline.sortKey = generateKeyBetween(inline.sortKey, nextKey);
@@ -608,7 +545,7 @@ export abstract class BasePage {
 
     insertText(position: SelectionPosition, text: string) {
         const block = this.blocks.find(b => b.id === position.blockId);
-        if (!block || !(block instanceof BaseTextBlock)) return;
+        if (!block || !(block instanceof TextBlock)) return;
 
         if (block.inlines.length === 0) {
             const newBaseInline = this.factory.createInlineText();
@@ -622,7 +559,7 @@ export abstract class BasePage {
         const contentLength = block.getContentLength();
         if (position.offset === contentLength) {
             const lastBaseInline = block.inlines[block.inlines.length - 1];
-            if (lastBaseInline instanceof BaseInlineText) {
+            if (lastBaseInline instanceof InlineText) {
                 lastBaseInline.content += text;
             } else {
                 const newBaseInline = this.factory.createInlineText();
@@ -635,7 +572,7 @@ export abstract class BasePage {
         }
 
         const { inline, offsetInInline } = block.findInlineAtOffset(position.offset);
-        if (inline instanceof BaseInlineText) {
+        if (inline instanceof InlineText) {
             inline.content = inline.content.substring(0, offsetInInline) + text + inline.content.slice(offsetInInline);
         } else {
             const newBaseInline = this.factory.createInlineText();
@@ -648,12 +585,6 @@ export abstract class BasePage {
 
         this.emit({ type: "text_inserted", blockId: position.blockId, offset: position.offset, text });
     }
-
-    deleteBlock(blockId: string) {
-        this.blocks = this.blocks.filter(b => b.id !== blockId);
-        this.emit({ type: "block_deleted", blockId });
-    }
-
     deleteContent(start: SelectionPosition, end: SelectionPosition) {
         const startBlock = this.blocks.find(block => block.id === start.blockId);
         const endBlock = this.blocks.find(block => block.id === end.blockId);
@@ -661,14 +592,14 @@ export abstract class BasePage {
         if (!startBlock || !endBlock) return;
 
         if (start.blockId === end.blockId) {
-            if (startBlock instanceof BaseTextBlock) {
+            if (startBlock instanceof TextBlock) {
                 const inlineStart = startBlock.findInlineAtOffset(start.offset);
                 const inlineEnd = startBlock.findInlineAtOffset(end.offset);
                 const startIdx = startBlock.inlines.findIndex(i => i.id === inlineStart.inline.id);
                 const endIdx = startBlock.inlines.findIndex(i => i.id === inlineEnd.inline.id);
 
                 if (startIdx === endIdx) {
-                    if (inlineStart.inline instanceof BaseInlineText) {
+                    if (inlineStart.inline instanceof InlineText) {
                         inlineStart.inline.content =
                             inlineStart.inline.content.substring(0, inlineStart.offsetInInline) +
                             inlineStart.inline.content.slice(inlineEnd.offsetInInline);
@@ -676,13 +607,21 @@ export abstract class BasePage {
                         startBlock.inlines = startBlock.inlines.filter(i => i.id !== inlineStart.inline.id);
                     }
                 } else {
-                    const keepStart = inlineStart.inline instanceof BaseInlineText
-                        ? (inlineStart.inline.content = inlineStart.inline.content.substring(0, inlineStart.offsetInInline), true)
-                        : inlineStart.offsetInInline > 0;
+                    let keepStart: boolean;
+                    if (inlineStart.inline instanceof InlineText) {
+                        inlineStart.inline.content = inlineStart.inline.content.substring(0, inlineStart.offsetInInline);
+                        keepStart = true;
+                    } else {
+                        keepStart = inlineStart.offsetInInline > 0;
+                    }
 
-                    const keepEnd = inlineEnd.inline instanceof BaseInlineText
-                        ? (inlineEnd.inline.content = inlineEnd.inline.content.slice(inlineEnd.offsetInInline), true)
-                        : inlineEnd.offsetInInline === 0;
+                    let keepEnd: boolean;
+                    if (inlineEnd.inline instanceof InlineText) {
+                        inlineEnd.inline.content = inlineEnd.inline.content.slice(inlineEnd.offsetInInline);
+                        keepEnd = true;
+                    } else {
+                        keepEnd = inlineEnd.offsetInInline === 0;
+                    }
 
                     startBlock.inlines = [
                         ...startBlock.inlines.slice(0, startIdx + (keepStart ? 1 : 0)),
@@ -710,11 +649,11 @@ export abstract class BasePage {
             return;
         }
 
-        if (startBlock instanceof BaseTextBlock) {
+        if (startBlock instanceof TextBlock) {
             const inlineToCut = startBlock.findInlineAtOffset(start.offset);
             const inlineToCutIndex = startBlock.inlines.findIndex(i => i.id === inlineToCut.inline.id);
-            let keepCurrentBaseInline = true;
-            if (inlineToCut.inline instanceof BaseInlineText) {
+            let keepCurrentBaseInline: boolean;
+            if (inlineToCut.inline instanceof InlineText) {
                 inlineToCut.inline.content = inlineToCut.inline.content.substring(0, inlineToCut.offsetInInline);
                 keepCurrentBaseInline = inlineToCut.inline.content.length > 0;
             } else {
@@ -723,11 +662,11 @@ export abstract class BasePage {
             startBlock.inlines = startBlock.inlines.slice(0, inlineToCutIndex + (keepCurrentBaseInline ? 1 : 0));
         }
 
-        if (endBlock instanceof BaseTextBlock) {
+        if (endBlock instanceof TextBlock) {
             const inlineToCut = endBlock.findInlineAtOffset(end.offset);
             const inlineToCutIndex = endBlock.inlines.findIndex(i => i.id === inlineToCut.inline.id);
-            let keepCurrentBaseInline = true;
-            if (inlineToCut.inline instanceof BaseInlineText) {
+            let keepCurrentBaseInline: boolean;
+            if (inlineToCut.inline instanceof InlineText) {
                 inlineToCut.inline.content = inlineToCut.inline.content.slice(inlineToCut.offsetInInline);
                 keepCurrentBaseInline = inlineToCut.inline.content.length > 0;
             } else {
@@ -753,7 +692,7 @@ export abstract class BasePage {
             ];
         }
 
-        if (startBlock instanceof BaseTextBlock && endBlock instanceof BaseTextBlock) {
+        if (startBlock instanceof TextBlock && endBlock instanceof TextBlock) {
             let prevKey = startBlock.inlines.length > 0 ? startBlock.inlines[startBlock.inlines.length - 1].sortKey : null;
             for (const inl of endBlock.inlines) {
                 inl.sortKey = generateKeyBetween(prevKey, null);
@@ -771,7 +710,7 @@ export abstract class BasePage {
             
             this.blocks = this.blocks.filter(b => b.id !== endBlock.id);
             this.emit({ type: "block_deleted", blockId: endBlock.id });
-        } else if (!(startBlock instanceof BaseTextBlock)) {
+        } else if (!(startBlock instanceof TextBlock)) {
             this.blocks = this.blocks.filter(b => b.id !== startBlock.id);
             this.emit({ type: "block_deleted", blockId: startBlock.id });
         }

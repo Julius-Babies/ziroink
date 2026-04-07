@@ -6,8 +6,8 @@ import {block as blockTable, page} from "$lib/server/db/schema";
 import {eq, inArray} from "drizzle-orm";
 import type {PageEvent} from "$lib/ziro/Events";
 import {pubsub} from "$lib/server/events";
-import {ServerFactory} from "$lib/ziro/server/ServerModels";
 import {PAGE_METADATA_CHANGED_EVENT_KEY, type ServerPageMetadataChangedEvent} from "$lib/server/sync/events";
+import {DocumentFactory} from "$lib/ziro/DocumentFactory.svelte";
 
 export const POST = async ({ request, params }: RequestEvent) => {
     const session = await auth.api.getSession({
@@ -94,7 +94,7 @@ export const POST = async ({ request, params }: RequestEvent) => {
     const titleBlock = modifiedBlocks.find(b => b.sortKey === "a0");
     if (titleBlock) {
         let title = "Unbenannte Seite";
-        const factory = new ServerFactory();
+        const factory = new DocumentFactory();
         const blockObj = factory.fromObject(titleBlock as any);
         const displayText = blockObj.toDisplayText();
         if (displayText && displayText !== "") {

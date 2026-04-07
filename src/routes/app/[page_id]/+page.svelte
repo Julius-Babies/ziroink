@@ -1,9 +1,7 @@
 <script lang="ts">
     import {showPageDeveloperDetails} from "../state";
-    import {Tabs, TabsList, TabsTrigger} from "$lib/components/ui/tabs";
     import {JsonView} from "@zerodevx/svelte-json-view";
     import {fly} from "svelte/transition";
-    import {ClientFactory} from "$lib/ziro/client/ClientModels.svelte";
     import {generateKeyBetween} from "fractional-indexing";
     import {KeyboardHandler} from "$lib/ziro/editor/keyboard/KeyboardHandler";
     import BlockRenderer from "$lib/ziro/editor/BlockRenderer.svelte";
@@ -13,8 +11,10 @@
     import buildTitle from "$lib/components/ui/buildTitle";
     import findUuidAtEnd from "$lib/util/findUuidAtEnd";
     import {untrack} from "svelte";
-    import {BaseTextBlock} from "$lib/ziro/BaseTextBlock";
+    import {TextBlock} from "$lib/ziro/TextBlock.svelte";
     import {replaceState} from "$app/navigation";
+    import DeveloperModeTabs from "$lib/web/page/DeveloperModeTabs.svelte";
+    import {DocumentFactory} from "$lib/ziro/DocumentFactory.svelte";
 
     let { data } = $props();
 
@@ -22,7 +22,7 @@
     let visibleDevTab: "document_tree" | "sync_queue" = $state("document_tree");
 
     function loadPageFromDB() {
-        const factory = new ClientFactory();
+        const factory = new DocumentFactory();
         const p = factory.createPage();
         
         if (data.blocks && data.blocks.length > 0) {
@@ -102,7 +102,7 @@
     function handleExternalSync(payload: any) {
         if (payload.clientId === clientId) return;
 
-        const factory = new ClientFactory();
+        const factory = new DocumentFactory();
         
         // Handle deletions
         if (payload.deletedBlockIds && payload.deletedBlockIds.length > 0) {
@@ -161,7 +161,7 @@
 
     let pageTitle = $derived.by(() => {
         const firstBlock = page.blocks[0];
-        if (firstBlock instanceof BaseTextBlock) {
+        if (firstBlock instanceof TextBlock) {
             return firstBlock.toDisplayText();
         }
         return "Unbenannt";
@@ -260,12 +260,7 @@
             </div>
 
             <div class="absolute top-0 left-0 w-full h-16 p-4 pt-16 bg-linear-to-b from-gray-50 to-gray-50/0">
-                <Tabs value={visibleDevTab} onValueChange={value => visibleDevTab = value as "document_tree" | "sync_queue"}>
-                    <TabsList>
-                        <TabsTrigger value="document_tree">Dokumentenbaum</TabsTrigger>
-                        <TabsTrigger value="sync_queue">Sync-Warteschlange</TabsTrigger>
-                    </TabsList>
-                </Tabs>
+                <DeveloperModeTabs bind:visibleDevTab={visibleDevTab} />
             </div>
         </div>
     {/if}

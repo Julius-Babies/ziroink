@@ -1,11 +1,11 @@
 <script lang="ts">
-    import type {BasePage, SelectionPosition} from "$lib/ziro/BasePage";
-    import {BaseInlineSymbol, BaseInlineText, BaseTextBlock} from "$lib/ziro/BaseTextBlock";
+    import type {Page, SelectionPosition} from "$lib/ziro/Page.svelte";
+    import {InlineSymbol, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
 
     let {
         page,
     }: {
-        page: BasePage
+        page: Page
     } = $props();
 
     let isDragging = false;
@@ -49,9 +49,9 @@
             const inlineId = element.getAttribute("data-ziro-editor-editable-for-block-inline-id");
             if (blockId && inlineId) {
                 const block = page.findBlock(b => b.id === blockId);
-                if (block && block instanceof BaseTextBlock) {
+                if (block && block instanceof TextBlock) {
                     const inline = block.inlines.find(i => i.id === inlineId);
-                    if (inline instanceof BaseInlineText) {
+                    if (inline instanceof InlineText) {
                         // If we used the targetEl directly but it's a text inline, 
                         // we still need the offset from caretPositionFromPoint if available.
                         // If caretPositionFromPoint didn't give us this element, we might need to approximate.
@@ -102,7 +102,7 @@
         if (clickCount === 2) {
             // Double click: word selection
             const block = page.findBlock(b => b.id === pos.blockId);
-            if (block instanceof BaseTextBlock) {
+            if (block instanceof TextBlock) {
                 const text = block.getVisualText();
                 const startOffset = findPrevWordBoundary(text, pos.offset);
                 const endOffset = findNextWordBoundary(text, pos.offset);
@@ -115,7 +115,7 @@
         if (clickCount === 3) {
             // Triple click: block selection
             const block = page.findBlock(b => b.id === pos.blockId);
-            if (block instanceof BaseTextBlock) {
+            if (block instanceof TextBlock) {
                 page.setSelection({ blockId: pos.blockId, offset: 0 }, { blockId: pos.blockId, offset: block.getContentLength() }, false);
             }
             clickTimeout = setTimeout(() => clickCount = 0, 400);
@@ -152,7 +152,7 @@
         }
     }
 
-    function onMouseUp(e: MouseEvent) {
+    function onMouseUp() {
         isDragging = false;
         dragStartPos = null;
     }
@@ -177,7 +177,7 @@
 
     function getDomNodeAndOffsetForPosition(pos: SelectionPosition): { node: Node, offset: number } | null {
         const block = page.findBlock(b => b.id === pos.blockId);
-        if (!block || !(block instanceof BaseTextBlock)) return null;
+        if (!block || !(block instanceof TextBlock)) return null;
 
         let { inline, offsetInInline } = block.findInlineAtOffset(pos.offset);
         
@@ -188,7 +188,7 @@
         // This is more stable for the browser caret.
         // findInlineAtOffset returns offsetInInline <= length.
         
-        if (inline instanceof BaseInlineText) {
+        if (inline instanceof InlineText) {
             const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
             if (!inlineEditable) return null;
 
@@ -205,7 +205,7 @@
             }
 
             return { node: anchorNode, offset: Math.min(offsetInInline, (anchorNode as Text).length) };
-        } else if (inline instanceof BaseInlineSymbol) {
+        } else if (inline instanceof InlineSymbol) {
             const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
             if (!inlineEditable) return null;
 
@@ -213,7 +213,7 @@
             // if it's a text inline, as browsers render carets in text nodes much more reliably.
             if (offsetInInline === 1 && inlineIndex < block.inlines.length - 1) {
                 const next = block.inlines[inlineIndex + 1];
-                if (next instanceof BaseInlineText) {
+                if (next instanceof InlineText) {
                     const nextEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${next.id}"]`) as HTMLElement;
                     if (nextEditable) {
                         let nextNode: Node | null = null;
@@ -233,7 +233,7 @@
             // If we are at offset 0 (BEFORE) a symbol and there's a PREVIOUS text inline, jump to its end.
             if (offsetInInline === 0 && inlineIndex > 0) {
                 const prev = block.inlines[inlineIndex - 1];
-                if (prev instanceof BaseInlineText) {
+                if (prev instanceof InlineText) {
                     const prevEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${prev.id}"]`) as HTMLElement;
                     if (prevEditable) {
                         let prevNode: Node | null = null;
@@ -327,9 +327,9 @@
             const blockId = el.getAttribute('data-ziro-editor-editable-for-block-id')!;
             const inlineId = el.getAttribute('data-ziro-editor-editable-for-block-inline-id')!;
             const block = page.findBlock(b => b.id === blockId);
-            if (!(block instanceof BaseTextBlock)) continue;
+            if (!(block instanceof TextBlock)) continue;
             const inline = block.inlines.find(i => i.id === inlineId);
-            if (!(inline instanceof BaseInlineSymbol)) continue;
+            if (!(inline instanceof InlineSymbol)) continue;
 
             const symbolOffset = block.findOffsetByInline(inlineId);
             const symbolStart = { blockId, offset: symbolOffset };
@@ -421,14 +421,6 @@
             return aIdx - bIdx;
         }
         return a.offset - b.offset;
-    }
-
-    function isPositionInRange(pos: SelectionPosition, start: SelectionPosition, end: SelectionPosition): boolean {
-        return comparePositions(pos, start) >= 0 && comparePositions(pos, end) <= 0;
-    }
-
-    function isRangeContained(rangeStart: SelectionPosition, rangeEnd: SelectionPosition, containerStart: SelectionPosition, containerEnd: SelectionPosition): boolean {
-        return comparePositions(rangeStart, containerStart) >= 0 && comparePositions(rangeEnd, containerEnd) <= 0;
     }
 
     $effect(() => {

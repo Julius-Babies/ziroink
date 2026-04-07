@@ -1,11 +1,11 @@
 import {db} from "$lib/server/db";
 import {block, page} from "$lib/server/db/schema";
 import {and, eq, isNull} from "drizzle-orm";
-import {ServerFactory} from "$lib/ziro/server/ServerModels";
 import type {InitialPage} from "$lib/web/app-shell/sidebar/model/events";
+import {DocumentFactory} from "$lib/ziro/DocumentFactory.svelte";
 
 export async function getAllPages(userId: string): Promise<InitialPage[]> {
-    const factory = new ServerFactory();
+    const factory = new DocumentFactory();
     return db
         .select()
         .from(page)

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type {BasePage} from "$lib/ziro/BasePage";
+    import type {Page} from "$lib/ziro/Page.svelte";
 
     let {
         content,
@@ -17,7 +17,7 @@
         blockId: string;
         inlineId: string | undefined;
         type: "pre-block" | "post-block" | "inline";
-        page: BasePage,
+        page: Page,
         bold?: boolean,
         italic?: boolean,
         underline?: boolean,

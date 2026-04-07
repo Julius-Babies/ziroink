@@ -1,5 +1,5 @@
-import type {BasePage, SelectionPosition} from "$lib/ziro/BasePage";
-import {BaseInlineText, BaseTextBlock} from "$lib/ziro/BaseTextBlock";
+import type {Page, SelectionPosition} from "$lib/ziro/Page.svelte";
+import {InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
 
 type OffsetPosition = { offset: number, x: number, y: number };
 
@@ -9,11 +9,11 @@ export type VerticalNavigationResult = {
     targetX: number;
 };
 
-export function buildOffsetPositions(block: BaseTextBlock): Map<number, OffsetPosition> {
+export function buildOffsetPositions(block: TextBlock): Map<number, OffsetPosition> {
     const result = new Map<number, OffsetPosition>();
 
     for (const inline of block.inlines) {
-        if (!(inline instanceof BaseInlineText)) continue;
+        if (!(inline instanceof InlineText)) continue;
 
         const inlineElement = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
         if (!inlineElement || inlineElement.childNodes.length === 0) continue;
@@ -110,7 +110,7 @@ function findClosestX(offsets: number[], positions: Map<number, OffsetPosition>,
     return bestOffset;
 }
 
-function findClosestOffsetInBlock(block: BaseTextBlock, positions: Map<number, OffsetPosition>, targetY: number, targetX: number): number | null {
+function findClosestOffsetInBlock(block: TextBlock, positions: Map<number, OffsetPosition>, targetY: number, targetX: number): number | null {
     const lineOffsets = findClosestLine(positions, targetY);
     if (lineOffsets.length === 0) return null;
     return findClosestX(lineOffsets, positions, targetX);
@@ -129,21 +129,21 @@ function getLines(positions: Map<number, OffsetPosition>): number[] {
 }
 
 export function handleVerticalNavigation(
-    page: BasePage,
+    page: Page,
     event: KeyboardEvent,
     cursorPos: SelectionPosition
 ): VerticalNavigationResult | null {
     const domSelection = window.getSelection();
     if (!domSelection || domSelection.rangeCount === 0) return null;
 
-    const cursorRect = getCursorRect(domSelection, cursorPos);
+    const cursorRect = getCursorRect(domSelection);
     if (!cursorRect) return null;
 
     const targetX = page.cursorXPosition ?? cursorRect.left;
     const lineHeight = cursorRect.height > 0 ? cursorRect.height : 20;
 
     const currentBlock = page.findBlock(b => b.id === cursorPos.blockId);
-    if (!currentBlock || !(currentBlock instanceof BaseTextBlock)) return null;
+    if (!currentBlock || !(currentBlock instanceof TextBlock)) return null;
 
     const currentPositions = buildOffsetPositions(currentBlock);
     const currentPos = currentPositions.get(cursorPos.offset);
@@ -171,7 +171,7 @@ export function handleVerticalNavigation(
 
     if (targetBlockIndex >= 0 && targetBlockIndex < page.blocks.length) {
         const targetBlock = page.blocks[targetBlockIndex];
-        if (targetBlock instanceof BaseTextBlock) {
+        if (targetBlock instanceof TextBlock) {
             const targetPositions = buildOffsetPositions(targetBlock);
             const targetLines = getLines(targetPositions);
 
@@ -194,7 +194,7 @@ export function handleVerticalNavigation(
     return null;
 }
 
-function getCursorRect(domSelection: Selection, cursorPos: SelectionPosition): DOMRect | null {
+function getCursorRect(domSelection: Selection): DOMRect | null {
     const focusNode = domSelection.focusNode;
     const focusOffset = domSelection.focusOffset;
 

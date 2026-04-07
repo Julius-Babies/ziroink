@@ -1,4 +1,4 @@
-import type { BaseTextBlockVariant, ListStyle } from "./BaseTextBlock";
+import type { TextBlockVariant, ListStyle } from "./TextBlock.svelte";
 
 export interface InlineObject {
     id: string;
@@ -17,7 +17,7 @@ export interface InlineObject {
 export interface BlockObject {
     id: string;
     type: string;
-    variant: BaseTextBlockVariant;
+    variant: TextBlockVariant;
     indentLevel: number;
     listType: "unordered" | "ordered" | null;
     listStyle?: ListStyle;

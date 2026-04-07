@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type {BaseInlineSymbol, BaseTextBlockVariant} from "$lib/ziro/BaseTextBlock";
+    import {type TextBlockVariant, InlineSymbol} from "$lib/ziro/TextBlock.svelte";
     import {Check, X} from "@lucide/svelte";
 
     let {
@@ -7,12 +7,12 @@
         blockId,
         variant,
     }: {
-        symbol: BaseInlineSymbol,
+        symbol: InlineSymbol,
         blockId: string,
-        variant: BaseTextBlockVariant,
+        variant: TextBlockVariant,
     } = $props();
 
-    const sizeMap: Record<BaseTextBlockVariant, { container: string, icon: number, emojiSize: string }> = {
+    const sizeMap: Record<TextBlockVariant, { container: string, icon: number, emojiSize: string }> = {
         h1: { container: "w-8 h-8", icon: 24, emojiSize: "text-5xl" },
         h2: { container: "w-7 h-7", icon: 20, emojiSize: "text-4xl" },
         h3: { container: "w-6 h-6", icon: 16, emojiSize: "text-3xl" },

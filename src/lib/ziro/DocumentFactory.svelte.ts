@@ -1,14 +1,23 @@
-import type { BasePage } from "./BasePage";
-import type { BaseTextBlock, BaseInlineText, BaseInlineSymbol, BaseInlineSymbolVariant } from "./BaseTextBlock";
-import type { BlockObject, InlineObject } from "./Schema";
+import {Page} from "./Page.svelte";
+import {InlineSymbol, type InlineSymbolVariant, InlineText, TextBlock} from "./TextBlock.svelte";
+import type {BlockObject, InlineObject} from "./Schema";
+import {v4 as uuidV4} from "uuid";
 
-export abstract class DocumentFactory {
-    abstract createPage(): BasePage;
-    abstract createTextBlock(id?: string): BaseTextBlock;
-    abstract createInlineText(id?: string): BaseInlineText;
-    abstract createInlineSymbol(symbol: BaseInlineSymbolVariant, id?: string): BaseInlineSymbol;
+export class DocumentFactory {
+    createPage(): Page {
+        return new Page();
+    }
+    createTextBlock(id?: string): TextBlock {
+        return new TextBlock(id || uuidV4());
+    }
+    createInlineText(id?: string): InlineText {
+        return new InlineText(id || uuidV4());
+    }
+    createInlineSymbol(symbol: InlineSymbolVariant, id?: string): InlineSymbol {
+        return new InlineSymbol(id || uuidV4(), symbol);
+    }
 
-    fromObject(obj: BlockObject): BaseTextBlock {
+    fromObject(obj: BlockObject): TextBlock {
         const block = this.createTextBlock(obj.id);
         block.variant = obj.variant;
         block.indentLevel = obj.indentLevel;

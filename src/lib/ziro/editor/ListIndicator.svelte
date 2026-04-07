@@ -1,13 +1,13 @@
 <script lang="ts">
-    import {BaseTextBlock} from "$lib/ziro/BaseTextBlock";
-    import type {BasePage} from "$lib/ziro/BasePage";
+    import {TextBlock} from "$lib/ziro/TextBlock.svelte";
+    import type {Page} from "$lib/ziro/Page.svelte";
 
     let {
         block,
         page
     }: {
-        block: BaseTextBlock,
-        page: BasePage
+        block: TextBlock,
+        page: Page
     } = $props();
 
     function getOrderedListItemIndex(): number {
@@ -15,7 +15,7 @@
         let count = 0;
         for (let i = currentIndex; i >= 0; i--) {
             const b = page.blocks[i];
-            if (b instanceof BaseTextBlock) {
+            if (b instanceof TextBlock) {
                 if (b.indentLevel < block.indentLevel) {
                     break;
                 }

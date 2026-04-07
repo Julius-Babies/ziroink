@@ -1,11 +1,11 @@
 <script lang="ts">
-    import type {BasePage} from "$lib/ziro/BasePage";
-    import {BaseTextBlock} from "$lib/ziro/BaseTextBlock";
+    import type {Page} from "$lib/ziro/Page.svelte";
+    import {TextBlock} from "$lib/ziro/TextBlock.svelte";
 
     let {
         page
     }: {
-        page: BasePage
+        page: Page
     } = $props();
 
     function onClick() {
@@ -16,7 +16,7 @@
         }
 
         const block = page.blocks[page.blocks.length - 1];
-        if (block instanceof BaseTextBlock && block.getContentLength() === 0) {
+        if (block instanceof TextBlock && block.getContentLength() === 0) {
             page.setSelection({blockId: block.id, offset: block.getContentLength()}, null)
         } else {
             const blockId = page.createEmptyBlockAtEnd();

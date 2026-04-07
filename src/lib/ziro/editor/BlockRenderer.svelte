@@ -1,7 +1,7 @@
 <script lang="ts">
     import type {Block} from "$lib/ziro/Block";
-    import type {BasePage} from "$lib/ziro/BasePage";
-    import {BaseInlineSymbol, BaseInlineText, BaseTextBlock} from "$lib/ziro/BaseTextBlock";
+    import type {Page} from "$lib/ziro/Page.svelte";
+    import {InlineSymbol, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
     import Editable from "$lib/ziro/editor/Editable.svelte";
     import InlineSymbolRenderer from "$lib/ziro/editor/InlineSymbolRenderer.svelte";
     import PlaceholderRenderer from "$lib/ziro/editor/PlaceholderRenderer.svelte";
@@ -14,11 +14,11 @@
         isPageTitle,
     }: {
         block: Block,
-        page: BasePage,
+        page: Page,
         isPageTitle: boolean,
     } = $props();
 
-    function getVariantClass(block: BaseTextBlock) {
+    function getVariantClass(block: TextBlock) {
         switch (block.variant) {
             case "h1": return "text-4xl font-bold mt-6";
             case "h2": return "text-3xl font-bold mt-5";
@@ -31,25 +31,12 @@
     }
 
     let isFocused = $derived(page.selection?.start.blockId === block.id);
-    let isEmpty = $derived(block instanceof BaseTextBlock && block.getContentLength() === 0);
+    let isEmpty = $derived(block instanceof TextBlock && block.getContentLength() === 0);
     let showPlaceholder = $derived(isFocused && isEmpty);
-
-    function toRoman(num: number): string {
-        const lookup: Record<string, number> = {M:1000,CM:900,D:500,CD:400,C:100,XC:90,L:50,XL:40,X:10,IX:9,V:5,IV:4,I:1};
-        let roman = '';
-        for (let i in lookup) {
-            while (num >= lookup[i]) {
-                roman += i;
-                num -= lookup[i];
-            }
-        }
-        return roman;
-    }
-
     let isHovering = $state(false);
 </script>
 
-{#if block instanceof BaseTextBlock}
+{#if block instanceof TextBlock}
     <div
             tabindex="-1"
             role="textbox"
@@ -86,13 +73,13 @@
                     {#if showPlaceholder}
                         <PlaceholderRenderer block={block} />
                     {/if}
-                    {#each (block.inlines) as inline, index (inline.id)}{#if index === 0 && !(inline instanceof BaseInlineText)}<Editable
+                    {#each (block.inlines) as inline, index (inline.id)}{#if index === 0 && !(inline instanceof InlineText)}<Editable
                             inlineId={inline.id}
                             type="inline"
                             blockId={block.id}
                             page={page}
                             content=""
-                    />{/if}{#if inline instanceof BaseInlineText}<Editable
+                    />{/if}{#if inline instanceof InlineText}<Editable
                             inlineId={inline.id}
                             type="inline"
                             blockId={block.id}
@@ -103,7 +90,7 @@
                             underline={inline.underline}
                             strikethrough={inline.strikethrough}
                             code={inline.code}
-                    />{:else if inline instanceof BaseInlineSymbol}<InlineSymbolRenderer symbol={inline} blockId={block.id} variant={block.variant} />{/if}{#if index === block.inlines.length - 1 && !(inline instanceof BaseInlineText)}<Editable
+                    />{:else if inline instanceof InlineSymbol}<InlineSymbolRenderer symbol={inline} blockId={block.id} variant={block.variant} />{/if}{#if index === block.inlines.length - 1 && !(inline instanceof InlineText)}<Editable
                             inlineId={inline.id}
                             type="inline"
                             blockId={block.id}

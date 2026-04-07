@@ -1,5 +1,4 @@
-import type {BaseInline, BaseInlineText, ListStyle, BaseTextBlock, BaseTextBlockVariant} from "$lib/ziro/BaseTextBlock";
-import type {Block} from "$lib/ziro/Block";
+import type {BaseInline, ListStyle, TextBlockVariant} from "$lib/ziro/TextBlock.svelte";
 
 export type BlockInsertPosition =
     | { type: "after_block"; afterId: string }
@@ -12,7 +11,7 @@ export type PageEvent =
     | { type: "block_deleted"; blockId: string }
     | { type: "block_indent_changed"; blockId: string; oldIndent: number; newIndent: number }
     | { type: "block_list_changed"; blockId: string; oldListType: "unordered" | "ordered" | null; newListType: "unordered" | "ordered" | null; oldListStyle: ListStyle | null; newListStyle: ListStyle | null }
-    | { type: "block_variant_changed"; blockId: string; oldVariant: BaseTextBlockVariant; newVariant: BaseTextBlockVariant }
+    | { type: "block_variant_changed"; blockId: string; oldVariant: TextBlockVariant; newVariant: TextBlockVariant }
     | { type: "block_split"; oldBlockId: string; newBlockId: string; splitOffset: number }
     | { type: "block_merged"; targetBlockId: string; sourceBlockId: string }
     | { type: "text_inserted"; blockId: string; offset: number; text: string }
