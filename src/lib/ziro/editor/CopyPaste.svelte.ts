@@ -88,18 +88,14 @@ export class CopyPaste {
 
             if (block.id === selection.end.blockId) break;
         }
-        let blocks = blocksToCopy.map(b => b.toObject());
+        const blocks = blocksToCopy.map(b => b.toObject());
         const text = Converter.blocksToText(blocksToCopy, inPage);
-
-        const html = `
-            <!-- Ziro-Application-Clipboard-Blocks=${btoa(JSON.stringify(blocks))} -->
-            <p>html ${text}</p>
-        `
+        const html = Converter.blocksToHtml(blocksToCopy, inPage);
 
         console.log("copied blocks", blocks, text, html);
 
         const clipboardItem = new ClipboardItem({
-            //"text/html": new Blob([html], {type: "text/html"}),
+            "text/html": new Blob([html], {type: "text/html"}),
             "text/plain": new Blob([text], {type: "text/plain"}),
         })
 
