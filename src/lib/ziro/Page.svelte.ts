@@ -37,6 +37,17 @@ export class Page {
         };
     }
 
+    getSelectedBlocks(selection: NonCollapsedSelection): Block[] {
+        const startIdx = this.blocks.findIndex(b => b.id === selection.start.blockId);
+        const endIdx = this.blocks.findIndex(b => b.id === selection.end.blockId);
+        if (startIdx === -1 || endIdx === -1) return [];
+
+        const minIdx = Math.min(startIdx, endIdx);
+        const maxIdx = Math.max(startIdx, endIdx);
+
+        return this.blocks.slice(minIdx, maxIdx + 1);
+    }
+
     private emit(event: PageEvent) {
         this.eventQueue.push(event);
         for (const subscriber of this.subscribers) {
@@ -52,16 +63,15 @@ export class Page {
         if (this.blocks.length > 0 && this.blocks[0].id === blockId) return; // Title block cannot be indented
         
         const block = this.blocks.find(b => b.id === blockId);
-        if (block && block instanceof TextBlock) {
-            const oldIndent = block.indentLevel;
-            block.indentLevel = Math.max(0, Math.min(4, block.indentLevel + delta));
-            this.emit({
-                type: "block_indent_changed",
-                blockId,
-                oldIndent: oldIndent,
-                newIndent: block.indentLevel
-            });
-        }
+        if (!block) return;
+        const oldIndent = block.indentLevel;
+        block.indentLevel = Math.max(0, Math.min(4, block.indentLevel + delta));
+        this.emit({
+            type: "block_indent_changed",
+            blockId,
+            oldIndent: oldIndent,
+            newIndent: block.indentLevel
+        });
     }
 
     updateBlockList(blockId: string, listType: "unordered" | "ordered" | null, listStyle: ListStyle | null) {

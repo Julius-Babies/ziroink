@@ -213,16 +213,26 @@ export class KeyboardHandler {
 
         if (event.key === "Tab") {
             event.preventDefault();
+            if (isNonCollapsedSelection(this.page.selection) && this.page.selection?.isBlockSelection) {
+                const selectedBlocks = this.page.getSelectedBlocks(this.page.selection);
+                selectedBlocks.forEach(block => {
+                    if (event.shiftKey) {
+                        this.page.updateBlockIndent(block.id, -1);
+                    } else {
+                        this.page.updateBlockIndent(block.id, 1);
+                    }
+                });
+                return;
+            }
             this.deleteSelection();
             const cursorPos = this.getCursorPosition();
             if (!cursorPos) return;
             const block = this.page.findBlock((b: any) => b.id === cursorPos.blockId);
-            if (block instanceof TextBlock) {
-                if (event.shiftKey) {
-                    this.page.updateBlockIndent(block.id, -1);
-                } else if (cursorPos.offset === 0) {
-                    this.page.updateBlockIndent(block.id, 1);
-                }
+            if (!block) return;
+            if (event.shiftKey) {
+                this.page.updateBlockIndent(block.id, -1);
+            } else if (cursorPos.offset === 0) {
+                this.page.updateBlockIndent(block.id, 1);
             }
             return;
         }
