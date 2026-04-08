@@ -40,7 +40,7 @@ export class Converter {
         }).join("\n");
     }
 
-    static blocksToHtml(blocks: Block[], page: Page): string {
+    static blocksToHtml(blocks: Block[], page: Page, isBlockSelection: boolean): string {
         const container = document.createElement("div");
         const listStack: { element: HTMLOListElement | HTMLUListElement, indent: number }[] = [];
 
@@ -53,7 +53,6 @@ export class Converter {
                 listStack.pop();
             }
 
-            let parent: HTMLElement = container;
             if (block.listStyle) {
                 if (listStack.length === 0 || listStack[listStack.length - 1].indent < currentIndent) {
                     const listTag = block.listStyle.type === "ordered" ? "ol" : "ul";
@@ -109,7 +108,7 @@ export class Converter {
             }
         }
 
-        return `<!-- Ziro-Application-Clipboard-Blocks=${btoa(JSON.stringify(blocks.map(b => b.toObject())))} -->\n${container.innerHTML}`;
+        return `<!-- Ziro-Application-Clipboard-Blocks=${btoa(JSON.stringify(blocks.map(b => b.toObject())))} -->\n<!-- Ziro-Application-Clipboard-IsBlockSelection=${isBlockSelection} -->\n${container.innerHTML}`;
     }
 
     private static appendInlines(element: HTMLElement, inlines: BaseInline[]) {

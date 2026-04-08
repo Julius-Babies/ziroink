@@ -17,7 +17,7 @@ export type NonCollapsedSelection = {
 }
 
 export function isNonCollapsedSelection(selection: null | Selection): selection is NonCollapsedSelection {
-    return selection !== null && selection.end !== null && !selection.isBlockSelection;
+    return selection !== null && selection.end !== null;
 }
 
 export class Page {

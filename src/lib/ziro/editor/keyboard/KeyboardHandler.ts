@@ -66,9 +66,9 @@ export class KeyboardHandler {
         }
     }
 
-    onPaste(event: ClipboardEvent) {
-        alert("Pasting is not yet supported!");
+    async onPaste(event: ClipboardEvent) {
         event.preventDefault();
+        await copyPaste.paste(this.page);
     }
 
     private deleteSelection(): boolean {
