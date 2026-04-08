@@ -1,5 +1,8 @@
 import {generateKeyBetween} from 'fractional-indexing';
 import type {Block} from "$lib/ziro/Block";
+import {toRoman} from "$lib/ziro/ui/roman";
+import * as path from "node:path";
+import type {Page} from "$lib/ziro/Page.svelte";
 
 export type TextBlockVariant = "paragraph" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
@@ -129,6 +132,52 @@ export class TextBlock implements Block {
 
         this.inlines = merged;
     }
+
+    getOrderedListItemIndex(inPage: Page): number {
+        const currentIndex = inPage.blocks.findIndex(b => b.id === this.id);
+        let count = 0;
+        for (let i = currentIndex; i >= 0; i--) {
+            const b = inPage.blocks[i];
+            if (b instanceof TextBlock) {
+                if (b.indentLevel < this.indentLevel) {
+                    break;
+                }
+                if (b.indentLevel === this.indentLevel && b.listType === "ordered") {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    getOrderedMarker(inPage: Page): string {
+        if (!this.listStyle || this.listStyle.type !== "ordered") return "";
+        const style = this.listStyle;
+        const index = this.getOrderedListItemIndex(inPage);
+
+        let value: string;
+        switch (style.variant) {
+            case "number":
+                value = String(index);
+                break;
+            case "letter_uppercase":
+                value = String.fromCharCode(64 + ((index - 1) % 26) + 1);
+                break;
+            case "letter_lowercase":
+                value = String.fromCharCode(96 + ((index - 1) % 26) + 1);
+                break;
+            case "roman_uppercase":
+                value = toRoman(index);
+                break;
+            case "roman_lowercase":
+                value = toRoman(index).toLowerCase();
+                break;
+            default:
+                value = String(index);
+        }
+
+        return (style.prefix || "") + value + (style.suffix || "");
+    }
 }
 
 export abstract class BaseInline {
@@ -185,6 +234,14 @@ export class InlineText extends BaseInline {
     constructor(id: string) {
         super();
         this.id = id;
+    }
+
+    copyStylesFrom(from: InlineText) {
+        this.bold = from.bold;
+        this.italic = from.italic;
+        this.underline = from.underline;
+        this.strikethrough = from.strikethrough;
+        this.code = from.code;
     }
 
     toObject() {

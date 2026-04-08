@@ -1,3 +1,3 @@
-import {writable} from "svelte/store";
+import {localStorageSyncedWritable} from "$lib/util/LocalStorageSyncedWritable";
 
-export const showPageDeveloperDetails = writable(false);
+export const showPageDeveloperDetails = localStorageSyncedWritable("page.dev.active", false);

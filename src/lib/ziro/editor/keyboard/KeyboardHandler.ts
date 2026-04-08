@@ -1,7 +1,14 @@
-import {type Page, isNonCollapsedSelection} from "$lib/ziro/Page.svelte";
-import {TextBlock, type ListStyle} from "$lib/ziro/TextBlock.svelte";
+import {isNonCollapsedSelection, type Page} from "$lib/ziro/Page.svelte";
+import {type ListStyle, TextBlock} from "$lib/ziro/TextBlock.svelte";
 import {buildOffsetPositions, findClosestLine, handleVerticalNavigation} from "$lib/ziro/VerticalNavigation";
-import {isArrowKey, isInsertLineBreak, isNewBlock, isToggleStyle} from "$lib/ziro/editor/keyboard/getEventAction";
+import {
+    isArrowKey,
+    isInsertLineBreak,
+    isNewBlock,
+    isPrimaryControlKey,
+    isToggleStyle
+} from "$lib/ziro/editor/keyboard/getEventAction";
+import {copyPaste} from "$lib/ziro/editor/CopyPaste.svelte";
 
 const WORD_SEPARATORS = [" ", "|", ".", ",", ";", ":", "!", "?", "(", ")", "[", "]", "{", "}", "\"", "'"];
 
@@ -160,7 +167,7 @@ export class KeyboardHandler {
         this.handleNewCharacter(e.data);
     }
 
-    onEvent(event: KeyboardEvent) {
+    async onEvent(event: KeyboardEvent) {
         if (event.isComposing) return;
 
         if (isToggleStyle(event)) {
@@ -241,24 +248,6 @@ export class KeyboardHandler {
 
             if (block instanceof TextBlock) {
                 const cursorOffset = this.page.selection!.start.offset;
-
-                // Title block special handling
-                if (this.page.blocks.length > 0 && this.page.blocks[0].id === block.id) {
-                    if (this.page.blocks.length > 1) {
-                        // Just move cursor to the next block
-                        const nextBlock = this.page.blocks[1];
-                        this.page.setSelection({blockId: nextBlock.id, offset: 0}, null);
-                        this.page.cursorXPosition = null;
-                        return;
-                    } else {
-                        // Create the first content paragraph block
-                        const newBlockId = this.page.createEmptyBlockAtEnd();
-                        this.page.setSelection({blockId: newBlockId, offset: 0}, null);
-                        this.page.cursorXPosition = null;
-                        return;
-                    }
-                }
-
                 const { newBlockId } = this.page.splitBlock(block.id, cursorOffset);
                 this.page.setSelection({blockId: newBlockId, offset: 0}, null);
                 this.page.cursorXPosition = null;
@@ -428,9 +417,15 @@ export class KeyboardHandler {
             }
         }
 
-        if (event.key === "a" && (isMac() ? event.metaKey : event.ctrlKey)) {
+        if (event.key === "a" && isPrimaryControlKey(event)) {
             event.preventDefault();
             this.handleSelectAll();
+            return;
+        }
+
+        if (event.key === "c" && isPrimaryControlKey(event)) {
+            event.preventDefault();
+            await this.handleCopy();
             return;
         }
 
@@ -480,6 +475,11 @@ export class KeyboardHandler {
             this.deleteSelection();
             this.handleNewCharacter(event.key);
         }
+    }
+
+    private async handleCopy() {
+        if (!isNonCollapsedSelection(this.page.selection)) return;
+        await copyPaste.copy(this.page.blocks, this.page.selection, this.page);
     }
 
     private handleNewCharacter(key: string) {

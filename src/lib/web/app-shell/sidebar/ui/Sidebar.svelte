@@ -49,7 +49,7 @@
 <svelte:window onmousemove={isResizing ? onMouseMove : null} onmouseup={isResizing ? onMouseUp : null} />
 
 <div
-        class="h-full border-r relative shrink-0 bg-slate-100"
+        class="h-full border-r relative shrink-0 bg-gray-50"
         style="width: {sidebarWidth}px"
 >
     <div class="p-2 flex flex-col h-full overflow-hidden">

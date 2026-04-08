@@ -145,7 +145,7 @@ export class Page {
         const newBlock = this.factory.createTextBlock();
         newBlock.indentLevel = block.indentLevel;
         newBlock.listType = block.listType;
-        newBlock.listStyle = {...block.listStyle};
+        newBlock.listStyle = block.listStyle ? {...block.listStyle} : null;
         if (newBlock.listStyle?.type === "checkbox") newBlock.listStyle.checked = false;
 
         const inlineAtCursor = block.findInlineAtOffset(offset);
@@ -391,14 +391,14 @@ export class Page {
                 if (p1) {
                     const inl1 = this.factory.createInlineText();
                     inl1.content = p1;
-                    this.copyStyles(inline, inl1);
+                    inl1.copyStylesFrom(inline);
                     currentKey = inl1.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl1);
                 }
                 if (p2) {
                     const inl2 = this.factory.createInlineText();
                     inl2.content = p2;
-                    this.copyStyles(inline, inl2);
+                    inl2.copyStylesFrom(inline);
                     inl2[style] = value;
                     currentKey = inl2.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl2);
@@ -406,7 +406,7 @@ export class Page {
                 if (p3) {
                     const inl3 = this.factory.createInlineText();
                     inl3.content = p3;
-                    this.copyStyles(inline, inl3);
+                    inl3.copyStylesFrom(inline);
                     currentKey = inl3.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl3);
                 }
@@ -417,14 +417,14 @@ export class Page {
                 if (p1) {
                     const inl1 = this.factory.createInlineText();
                     inl1.content = p1;
-                    this.copyStyles(inline, inl1);
+                    inl1.copyStylesFrom(inline);
                     currentKey = inl1.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl1);
                 }
                 if (p2) {
                     const inl2 = this.factory.createInlineText();
                     inl2.content = p2;
-                    this.copyStyles(inline, inl2);
+                    inl2.copyStylesFrom(inline);
                     inl2[style] = value;
                     currentKey = inl2.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl2);
@@ -436,7 +436,7 @@ export class Page {
                 if (p1) {
                     const inl1 = this.factory.createInlineText();
                     inl1.content = p1;
-                    this.copyStyles(inline, inl1);
+                    inl1.copyStylesFrom(inline);
                     inl1[style] = value;
                     currentKey = inl1.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl1);
@@ -444,14 +444,14 @@ export class Page {
                 if (p2) {
                     const inl2 = this.factory.createInlineText();
                     inl2.content = p2;
-                    this.copyStyles(inline, inl2);
+                    inl2.copyStylesFrom(inline);
                     currentKey = inl2.sortKey = generateKeyBetween(currentKey, null);
                     newInlines.push(inl2);
                 }
             } else {
                 const inl = this.factory.createInlineText();
                 inl.content = inline.content;
-                this.copyStyles(inline, inl);
+                inl.copyStylesFrom(inline);
                 inl[style] = value;
                 currentKey = inl.sortKey = generateKeyBetween(currentKey, null);
                 newInlines.push(inl);
@@ -460,14 +460,6 @@ export class Page {
 
         block.inlines = newInlines;
         block._mergeAdjacentBaseInlines();
-    }
-
-    private copyStyles(from: InlineText, to: InlineText) {
-        to.bold = from.bold;
-        to.italic = from.italic;
-        to.underline = from.underline;
-        to.strikethrough = from.strikethrough;
-        to.code = from.code;
     }
 
     insertInlineAtOffset(blockId: string, offset: number, inline: BaseInline) {
@@ -484,7 +476,7 @@ export class Page {
             targetBaseInline.content = textBefore;
             const afterBaseInline = this.factory.createInlineText();
             afterBaseInline.content = textAfter;
-            this.copyStyles(targetBaseInline, afterBaseInline);
+            afterBaseInline.copyStylesFrom(targetBaseInline);
             
             inline.sortKey = generateKeyBetween(targetBaseInline.sortKey, null);
             afterBaseInline.sortKey = generateKeyBetween(inline.sortKey, null);

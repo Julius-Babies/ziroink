@@ -15,11 +15,13 @@
     import {replaceState} from "$app/navigation";
     import DeveloperModeTabs from "$lib/web/page/DeveloperModeTabs.svelte";
     import {DocumentFactory} from "$lib/ziro/DocumentFactory.svelte";
+    import {localStorageSyncedWritable} from "$lib/util/LocalStorageSyncedWritable";
+    import {copyPaste} from "$lib/ziro/editor/CopyPaste.svelte";
 
     let { data } = $props();
 
 
-    let visibleDevTab: "document_tree" | "sync_queue" = $state("document_tree");
+    let visibleDevTab = localStorageSyncedWritable<"document_tree" | "sync_queue" | "copy_paste">("page.dev.tab", "document_tree");
 
     function loadPageFromDB() {
         const factory = new DocumentFactory();
@@ -249,19 +251,21 @@
                 class="h-full flex relative flex-1 bg-gray-50 border-l border-gray-200"
         >
             <div class="absolute top-0 left-0 flex flex-col w-full h-full p-4 overflow-y-auto pt-28">
-                {#if visibleDevTab === "document_tree"}
+                {#if $visibleDevTab === "document_tree"}
                     <JsonView json={{
-                cursorX: page.cursorXPosition,
-                selection: page.selection,
-                blocks: page.blocks.map(b => b.toObject())
-            }}/>
-                {:else if visibleDevTab === "sync_queue"}
+                        cursorX: page.cursorXPosition,
+                        selection: page.selection,
+                        blocks: page.blocks.map(b => b.toObject())
+                    }}/>
+                {:else if $visibleDevTab === "sync_queue"}
                     <JsonView json={page.eventQueue}/>
+                {:else if $visibleDevTab === "copy_paste"}
+                    <JsonView json={copyPaste.clipboard}/>
                 {/if}
             </div>
 
             <div class="absolute top-0 left-0 w-full h-16 p-4 pt-16 bg-linear-to-b from-gray-50 to-gray-50/0">
-                <DeveloperModeTabs bind:visibleDevTab={visibleDevTab} />
+                <DeveloperModeTabs bind:visibleDevTab={$visibleDevTab} />
             </div>
         </div>
     {/if}

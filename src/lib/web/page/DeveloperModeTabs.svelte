@@ -4,7 +4,7 @@
     let {
         visibleDevTab = $bindable(),
     }: {
-        visibleDevTab: "document_tree" | "sync_queue"
+        visibleDevTab: "document_tree" | "sync_queue" | "copy_paste"
     } = $props();
 
     function onChange(to: string) {
@@ -16,5 +16,6 @@
     <TabsList>
         <TabsTrigger value="document_tree">Dokumentenbaum</TabsTrigger>
         <TabsTrigger value="sync_queue">Sync-Warteschlange</TabsTrigger>
+        <TabsTrigger value="copy_paste">Zwischenablage</TabsTrigger>
     </TabsList>
 </Tabs>

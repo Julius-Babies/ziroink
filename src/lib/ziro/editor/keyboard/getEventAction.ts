@@ -1,3 +1,5 @@
+import {getPlatform} from "$lib/util/platform";
+
 export function isInsertLineBreak(event: KeyboardEvent): boolean {
     return event.key === "Enter" && event.shiftKey
 }
@@ -12,4 +14,8 @@ export function isToggleStyle(event: KeyboardEvent): boolean {
 
 export function isArrowKey(key: string): boolean {
     return ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(key);
+}
+
+export function isPrimaryControlKey(event: KeyboardEvent): boolean {
+    return (getPlatform() === "macos" ? event.metaKey : event.ctrlKey)
 }
