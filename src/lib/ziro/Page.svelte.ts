@@ -587,8 +587,17 @@ export class Page {
         if (isBlockSelection) {
             const startIndex = this.blocks.findIndex(b => b.id === start.blockId);
             const endIndex = this.blocks.findIndex(b => b.id === end.blockId);
-            const minIndex = Math.min(startIndex, endIndex);
+            let minIndex = Math.min(startIndex, endIndex);
             const maxIndex = Math.max(startIndex, endIndex);
+            
+            // Prevent deleting the headline block
+            if (minIndex === 0) {
+                minIndex = 1;
+            }
+
+            if (minIndex > maxIndex) {
+                return;
+            }
             
             const blocksToRemove = this.blocks.slice(minIndex, maxIndex + 1);
             for (const b of blocksToRemove) {
@@ -599,8 +608,8 @@ export class Page {
                 ...this.blocks.slice(maxIndex + 1),
             ];
             
-            // If all blocks are deleted, ensure at least one empty block exists
-            if (this.blocks.length === 0) {
+            // If all content blocks are deleted, ensure at least one empty block exists
+            if (this.blocks.length === 1) {
                 this.createEmptyBlockAtEnd();
             }
             
