@@ -448,6 +448,12 @@ export class KeyboardHandler {
             return;
         }
 
+        if (event.key === "x" && isPrimaryControlKey(event)) {
+            event.preventDefault();
+            await this.handleCut();
+            return;
+        }
+
         if (event.key === ")") {
             const cursorPos = this.getCursorPosition();
             if (!cursorPos) return;
@@ -499,6 +505,12 @@ export class KeyboardHandler {
     private async handleCopy() {
         if (!isNonCollapsedSelection(this.page.selection)) return;
         await copyPaste.copy(this.page.blocks, this.page.selection, this.page);
+    }
+
+    private async handleCut() {
+        if (!isNonCollapsedSelection(this.page.selection)) return;
+        await copyPaste.copy(this.page.blocks, this.page.selection, this.page);
+        this.deleteSelection();
     }
 
     private handleNewCharacter(key: string) {
