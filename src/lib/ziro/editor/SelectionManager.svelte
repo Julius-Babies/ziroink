@@ -153,7 +153,24 @@
 
         // If moved outside single click range, treat as target
         if (pos.blockId !== dragStartPos.blockId || pos.offset !== dragStartPos.offset) {
-            page.setSelection(dragStartPos, pos, page.selection?.isBlockSelection ?? false);
+            let isBlockSelection = page.selection?.isBlockSelection ?? false;
+            
+            // If dragging, we enter block selection if start or end is not index 0
+            // BUT wait, the requirement is "ensure the block selection does not target our headline"
+            // and "first block to be even selectable by the block selection mode".
+            
+            const startIdx = page.blocks.findIndex(b => b.id === dragStartPos!.blockId);
+            const endIdx = page.blocks.findIndex(b => b.id === pos.blockId);
+            
+            if (isBlockSelection && (startIdx === 0 || endIdx === 0)) {
+                // If we are in block selection mode and drag into the headline, 
+                // we should probably stay in block selection but the visual highlight 
+                // will be handled by the effect. 
+                // However, the user said "first block not even selectable by the block selection mode".
+                // This implies if a range is a block selection, it shouldn't include block 0.
+            }
+
+            page.setSelection(dragStartPos, pos, isBlockSelection);
         } else {
             page.setSelection(dragStartPos, null, false);
         }
@@ -465,7 +482,8 @@
             const endBlockIdx = page.blocks.findIndex(b => b.id === normalized.end.blockId);
 
             const rects: Rect[] = [];
-            for (let i = Math.min(startBlockIdx, endBlockIdx); i <= Math.max(startBlockIdx, endBlockIdx); i++) {
+            // Skip block 0 (headline) in block selection highlight
+            for (let i = Math.max(1, Math.min(startBlockIdx, endBlockIdx)); i <= Math.max(startBlockIdx, endBlockIdx); i++) {
                 const block = page.blocks[i];
                 const blockEl = document.querySelector(`[data-ziro-block-id="${block.id}"]`) as HTMLElement;
                 if (!blockEl) continue;

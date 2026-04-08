@@ -168,6 +168,12 @@ export class KeyboardHandler {
         }
 
         // Stage 2: If content already selected (or non-text block), select single block
+        // Skip block selection for the title block (index 0)
+        const blockIndex = this.page.blocks.indexOf(block);
+        if (blockIndex === 0) {
+            return;
+        }
+
         this.page.setSelection(
             { blockId: block.id, offset: 0 },
             { blockId: block.id, offset: 0 },
