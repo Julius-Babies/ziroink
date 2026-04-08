@@ -1,6 +1,7 @@
 <script lang="ts">
     import type {Page, SelectionPosition} from "$lib/ziro/Page.svelte";
     import {InlineSymbol, InlineText, TextBlock} from "$lib/ziro/TextBlock.svelte";
+    import {fade} from "svelte/transition";
 
     let {
         page,
@@ -56,22 +57,22 @@
                         // we still need the offset from caretPositionFromPoint if available.
                         // If caretPositionFromPoint didn't give us this element, we might need to approximate.
                         if (element !== targetEl || !node) {
-                             // Approximation if caret didn't hit it: use X position
-                             // But usually caretPositionFromPoint is reliable for text.
+                            // Approximation if caret didn't hit it: use X position
+                            // But usually caretPositionFromPoint is reliable for text.
                         }
                         offset = Math.min(offset, inline.content.length);
-                        return { blockId, offset: block.findOffsetByInline(inlineId) + offset };
+                        return {blockId, offset: block.findOffsetByInline(inlineId) + offset};
                     } else if (inline) {
                         const rect = element.getBoundingClientRect();
                         const xPositionRelativeToElement = e.clientX - rect.left;
                         const symbolOffset = block.findOffsetByInline(inlineId);
-                        
+
                         // 50/50 rule: If user clicks in the left 50% of the non-text inline, place cursor before it.
                         // If user clicks in the right 50%, place cursor after it.
                         if (xPositionRelativeToElement < rect.width / 2) {
-                            return { blockId, offset: symbolOffset };
+                            return {blockId, offset: symbolOffset};
                         } else {
-                            return { blockId, offset: symbolOffset + 1 };
+                            return {blockId, offset: symbolOffset + 1};
                         }
                     }
                 }
@@ -85,7 +86,7 @@
         if ((page as any).cursorXPosition !== undefined) {
             (page as any).cursorXPosition = null;
         }
-        
+
         // Disable native selection to implement our own. 
         // We'll sync our state back to the DOM selection manually in the effect.
         if (e.detail > 1) {
@@ -106,7 +107,10 @@
                 const text = block.getVisualText();
                 const startOffset = findPrevWordBoundary(text, pos.offset);
                 const endOffset = findNextWordBoundary(text, pos.offset);
-                page.setSelection({ blockId: pos.blockId, offset: startOffset }, { blockId: pos.blockId, offset: endOffset }, false);
+                page.setSelection({blockId: pos.blockId, offset: startOffset}, {
+                    blockId: pos.blockId,
+                    offset: endOffset
+                }, false);
             }
             clickTimeout = setTimeout(() => clickCount = 0, 400);
             return;
@@ -116,7 +120,10 @@
             // Triple click: block selection
             const block = page.findBlock(b => b.id === pos.blockId);
             if (block instanceof TextBlock) {
-                page.setSelection({ blockId: pos.blockId, offset: 0 }, { blockId: pos.blockId, offset: block.getContentLength() }, false);
+                page.setSelection({blockId: pos.blockId, offset: 0}, {
+                    blockId: pos.blockId,
+                    offset: block.getContentLength()
+                }, false);
             }
             clickTimeout = setTimeout(() => clickCount = 0, 400);
             return;
@@ -126,7 +133,7 @@
 
         isDragging = true;
         dragStartPos = pos;
-        
+
         if (e.shiftKey && page.selection) {
             page.setSelection(page.selection.start, pos, page.selection.isBlockSelection);
             dragStartPos = page.selection.start;
@@ -158,6 +165,7 @@
     }
 
     const WORD_SEPARATORS = [" ", "|"];
+
     function findPrevWordBoundary(text: string, fromOffset: number): number {
         let textBeforeCursor = text.slice(0, fromOffset);
         while (textBeforeCursor.length > 0 && WORD_SEPARATORS.includes(textBeforeCursor.slice(-1))) {
@@ -179,15 +187,15 @@
         const block = page.findBlock(b => b.id === pos.blockId);
         if (!block || !(block instanceof TextBlock)) return null;
 
-        let { inline, offsetInInline } = block.findInlineAtOffset(pos.offset);
-        
+        let {inline, offsetInInline} = block.findInlineAtOffset(pos.offset);
+
         const inlineIndex = block.inlines.findIndex(i => i.id === inline.id);
 
         // Preference: If we are at the end of a text inline (offsetInInline === content.length),
         // we prefer staying in that text inline rather than jumping to the next inline's start.
         // This is more stable for the browser caret.
         // findInlineAtOffset returns offsetInInline <= length.
-        
+
         if (inline instanceof InlineText) {
             const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
             if (!inlineEditable) return null;
@@ -199,12 +207,12 @@
                     break;
                 }
             }
-            
+
             if (!anchorNode) {
-                return { node: inlineEditable, offset: 0 };
+                return {node: inlineEditable, offset: 0};
             }
 
-            return { node: anchorNode, offset: Math.min(offsetInInline, (anchorNode as Text).length) };
+            return {node: anchorNode, offset: Math.min(offsetInInline, (anchorNode as Text).length)};
         } else if (inline instanceof InlineSymbol) {
             const inlineEditable = document.querySelector(`[data-ziro-editor-editable-for-block-inline-id="${inline.id}"]`) as HTMLElement;
             if (!inlineEditable) return null;
@@ -225,7 +233,7 @@
                         }
                         // Even if there's no text node (empty inline), targeting the inline element at offset 0 
                         // is often better than targeting a symbol at offset 1.
-                        return { node: nextNode || nextEditable, offset: 0 };
+                        return {node: nextNode || nextEditable, offset: 0};
                     }
                 }
             }
@@ -243,7 +251,7 @@
                                 break;
                             }
                         }
-                        if (prevNode) return { node: prevNode, offset: (prevNode as Text).length };
+                        if (prevNode) return {node: prevNode, offset: (prevNode as Text).length};
                     }
                 }
             }
@@ -256,11 +264,11 @@
                 const index = Array.from(parent.childNodes).indexOf(inlineEditable);
                 if (index !== -1) {
                     // offset: index places it BEFORE, index + 1 places it AFTER
-                    return { node: parent, offset: index + offsetInInline };
+                    return {node: parent, offset: index + offsetInInline};
                 }
             }
 
-            return { node: inlineEditable, offset: offsetInInline };
+            return {node: inlineEditable, offset: offsetInInline};
         }
 
         return null;
@@ -268,7 +276,7 @@
 
     let selectionRects: Rect[] = $state([]);
 
-    type Rect = { top: number, bottom: number, left: number, right: number, width: number, height: number };
+    type Rect = { top: number, bottom: number, left: number, right: number, width: number, height: number, key: string };
 
     function getNormalizedSelectionRects(range: Range, startPos: SelectionPosition, endPos: SelectionPosition): Rect[] {
         const textRects: Rect[] = [];
@@ -303,10 +311,14 @@
             const actualStart = (text === range.startContainer) ? range.startOffset : 0;
             const actualEnd = (text === range.endContainer) ? range.endOffset : text.length;
 
-            textNodes.push({ node: text, start: Math.min(actualStart, actualEnd), end: Math.max(actualStart, actualEnd) });
+            textNodes.push({
+                node: text,
+                start: Math.min(actualStart, actualEnd),
+                end: Math.max(actualStart, actualEnd)
+            });
         }
 
-        for (const { node, start, end } of textNodes) {
+        for (const {node, start, end} of textNodes) {
             if (start >= end) continue;
             const charRange = document.createRange();
             charRange.setStart(node, start);
@@ -314,6 +326,7 @@
             for (const rect of charRange.getClientRects()) {
                 if (rect.width > 0 && rect.height > 0) {
                     textRects.push({
+                        key: node.parentElement?.getAttribute('data-ziro-editor-editable-for-block-inline-id') || `${rect.top}-${rect.left}`,
                         top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right,
                         width: rect.width, height: rect.height
                     });
@@ -332,15 +345,23 @@
             if (!(inline instanceof InlineSymbol)) continue;
 
             const symbolOffset = block.findOffsetByInline(inlineId);
-            const symbolStart = { blockId, offset: symbolOffset };
-            const symbolEnd = { blockId, offset: symbolOffset + 1 };
+            const symbolStart = {blockId, offset: symbolOffset};
+            const symbolEnd = {blockId, offset: symbolOffset + 1};
 
             const startsBeforeEnd = comparePositions(symbolStart, endPos) < 0;
             const endsAfterStart = comparePositions(symbolEnd, startPos) > 0;
             if (startsBeforeEnd && endsAfterStart) {
                 const rect = el.getBoundingClientRect();
                 if (rect.width > 0 && rect.height > 0) {
-                    symbolRects.push({ top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width, height: rect.height });
+                    symbolRects.push({
+                        key: inlineId,
+                        top: rect.top,
+                        bottom: rect.bottom,
+                        left: rect.left,
+                        right: rect.right,
+                        width: rect.width,
+                        height: rect.height
+                    });
                 }
             }
         }
@@ -357,6 +378,7 @@
             if (r.height < dominantHeight - 1) {
                 const diff = dominantHeight - r.height;
                 return {
+                    key: r.key,
                     top: r.top - diff / 2,
                     bottom: r.bottom + diff / 2,
                     left: r.left,
@@ -372,6 +394,7 @@
             if (r.height < dominantHeight - 1) {
                 const diff = dominantHeight - r.height;
                 return {
+                    key: r.key,
                     top: r.top - diff / 2,
                     bottom: r.bottom + diff / 2,
                     left: r.left,
@@ -405,8 +428,8 @@
                 current.bottom = Math.max(current.bottom, next.bottom);
                 current.height = current.bottom - current.top;
             } else {
-                merged.push({ ...current });
-                current = { ...next };
+                merged.push({...current});
+                current = {...next};
             }
         }
         merged.push(current);
@@ -432,7 +455,7 @@
         // Handle block selection: highlight entire block content areas (excluding handle buttons)
         if (page.selection.isBlockSelection) {
             const endPos = page.selection.end ?? page.selection.start;
-            const normalized = page.getNormalizedSelection({ ...page.selection, end: endPos });
+            const normalized = page.getNormalizedSelection({...page.selection, end: endPos});
             if (!normalized) {
                 selectionRects = [];
                 return;
@@ -452,9 +475,10 @@
 
                 const handleEl = blockEl.querySelector('[data-ziro-editor-block-handle]') as HTMLElement;
                 const handleWidth = handleEl ? handleEl.getBoundingClientRect().width : 0;
-                
+
                 const flexRect = flexRow.getBoundingClientRect();
                 rects.push({
+                    key: block.id,
                     top: flexRect.top,
                     bottom: flexRect.bottom,
                     left: flexRect.left + handleWidth,
@@ -482,7 +506,7 @@
         } else {
             const endDOM = getDomNodeAndOffsetForPosition(page.selection.end);
             if (!endDOM) return;
-            
+
             selection.setBaseAndExtent(startDOM.node, startDOM.offset, endDOM.node, endDOM.offset);
 
             if (selection.rangeCount > 0) {
@@ -515,14 +539,15 @@
     const verticalPadding = 2;
 </script>
 
-{#each selectionRects as rect}
+{#each selectionRects as rect (rect.key)}
     <div
-        class="fixed bg-blue-400/30 rounded pointer-events-none mix-blend-multiply"
-        style="
-            top: {rect.top - verticalPadding}px;
+            transition:fade={{duration: page.selection?.isBlockSelection ? 100 : 0}}
+            class="fixed bg-blue-400/30 rounded pointer-events-none mix-blend-multiply pb-2"
+            style="
+            top: {rect.top - (page.selection?.isBlockSelection ? 0 : 1) * verticalPadding}px;
             left: {rect.left}px;
             width: {rect.width}px;
-            height: {rect.height + 2*verticalPadding}px;
+            height: {rect.height + (page.selection?.isBlockSelection ? 1 : 2)*verticalPadding}px;
         "
     ></div>
 {/each}
