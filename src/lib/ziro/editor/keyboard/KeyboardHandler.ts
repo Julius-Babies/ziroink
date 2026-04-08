@@ -74,8 +74,21 @@ export class KeyboardHandler {
     private deleteSelection(): boolean {
         const normalized = this.page.getNormalizedSelection();
         if (normalized) {
-            this.page.deleteContent(normalized.start, normalized.end);
-            this.page.setSelection(normalized.start, null);
+            this.page.deleteContent(normalized.start, normalized.end, this.page.selection?.isBlockSelection || false);
+            
+            if (this.page.selection?.isBlockSelection) {
+                // After deleting a block selection, place cursor at the beginning of the block that took its place
+                // or the last block if it was the end of the page.
+                const blockId = normalized.start.blockId;
+                const block = this.page.findBlock((b: any) => b.id === blockId) || this.page.blocks[Math.max(0, this.page.blocks.length - 1)];
+                if (block) {
+                    this.page.setSelection({ blockId: block.id, offset: 0 }, null);
+                } else {
+                    this.page.selection = null;
+                }
+            } else {
+                this.page.setSelection(normalized.start, null);
+            }
             return true;
         }
         return false;

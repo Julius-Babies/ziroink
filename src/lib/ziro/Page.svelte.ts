@@ -578,11 +578,34 @@ export class Page {
 
         this.emit({ type: "text_inserted", blockId: position.blockId, offset: position.offset, text });
     }
-    deleteContent(start: SelectionPosition, end: SelectionPosition) {
+    deleteContent(start: SelectionPosition, end: SelectionPosition, isBlockSelection: boolean = false) {
         const startBlock = this.blocks.find(block => block.id === start.blockId);
         const endBlock = this.blocks.find(block => block.id === end.blockId);
 
         if (!startBlock || !endBlock) return;
+
+        if (isBlockSelection) {
+            const startIndex = this.blocks.findIndex(b => b.id === start.blockId);
+            const endIndex = this.blocks.findIndex(b => b.id === end.blockId);
+            const minIndex = Math.min(startIndex, endIndex);
+            const maxIndex = Math.max(startIndex, endIndex);
+            
+            const blocksToRemove = this.blocks.slice(minIndex, maxIndex + 1);
+            for (const b of blocksToRemove) {
+                this.emit({ type: "block_deleted", blockId: b.id });
+            }
+            this.blocks = [
+                ...this.blocks.slice(0, minIndex),
+                ...this.blocks.slice(maxIndex + 1),
+            ];
+            
+            // If all blocks are deleted, ensure at least one empty block exists
+            if (this.blocks.length === 0) {
+                this.createEmptyBlockAtEnd();
+            }
+            
+            return;
+        }
 
         if (start.blockId === end.blockId) {
             if (startBlock instanceof TextBlock) {

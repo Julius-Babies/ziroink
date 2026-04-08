@@ -9,9 +9,10 @@ Every action in the editor that mutates the page should create an event on the s
 to the server and get synced across devices. This includes things like creating a new block, deleting a block, changing
 the content of a block, etc.
 
+If a selection is a blockSelection, then the offset is to be ignored since it targets the entire block.
+
 # Technical
 - Prefer using the svelte 5 runes over the $: **always**
 
 # Tools
-
 - Use bun instead of npm/node

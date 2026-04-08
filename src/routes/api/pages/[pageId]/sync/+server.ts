@@ -30,36 +30,38 @@ export const POST = async ({ request, params }: RequestEvent) => {
 
     const { events, modifiedBlocks, clientId } = await request.json() as { events: PageEvent[], modifiedBlocks: any[], clientId: string };
 
-    if (!modifiedBlocks || modifiedBlocks.length === 0) {
-        return json({ success: true, message: "No blocks to sync" });
+    if ((!modifiedBlocks || modifiedBlocks.length === 0) && (!events || events.length === 0)) {
+        return json({ success: true, message: "No events or blocks to sync" });
     }
 
     // Execute bulk upsert (insert or update) for the modified blocks
-    for (const block of modifiedBlocks) {
-        await db.insert(blockTable)
-            .values({
-                id: block.id,
-                pageId: pageId,
-                type: block.type || "text",
-                variant: block.variant,
-                indentLevel: block.indentLevel || 0,
-                listType: block.listType || null,
-                listStyle: block.listStyle || null,
-                sortKey: block.sortKey || "a0",
-                content: block.inlines || [],
-            })
-            .onConflictDoUpdate({
-                target: blockTable.id,
-                set: {
+    if (modifiedBlocks && modifiedBlocks.length > 0) {
+        for (const block of modifiedBlocks) {
+            await db.insert(blockTable)
+                .values({
+                    id: block.id,
+                    pageId: pageId,
+                    type: block.type || "text",
                     variant: block.variant,
                     indentLevel: block.indentLevel || 0,
                     listType: block.listType || null,
                     listStyle: block.listStyle || null,
                     sortKey: block.sortKey || "a0",
                     content: block.inlines || [],
-                    updatedAt: new Date()
-                }
-            });
+                })
+                .onConflictDoUpdate({
+                    target: blockTable.id,
+                    set: {
+                        variant: block.variant,
+                        indentLevel: block.indentLevel || 0,
+                        listType: block.listType || null,
+                        listStyle: block.listStyle || null,
+                        sortKey: block.sortKey || "a0",
+                        content: block.inlines || [],
+                        updatedAt: new Date()
+                    }
+                });
+        }
     }
 
     const blocksToDelete = new Set<string>();
@@ -79,13 +81,13 @@ export const POST = async ({ request, params }: RequestEvent) => {
     // Broadcast the changes to other clients connected via SSE
     pubsub.emit(`page:${pageId}`, {
         clientId,
-        events,
-        modifiedBlocks,
+        events: events || [],
+        modifiedBlocks: modifiedBlocks || [],
         deletedBlockIds: Array.from(blocksToDelete)
     });
 
     // Check if the title block (first block) was modified and emit a sidebar update
-    const titleBlock = modifiedBlocks.find(b => b.sortKey === "a0");
+    const titleBlock = modifiedBlocks ? modifiedBlocks.find(b => b.sortKey === "a0") : null;
     if (titleBlock) {
         let title = "Unbenannte Seite";
         const factory = new DocumentFactory();
@@ -104,5 +106,5 @@ export const POST = async ({ request, params }: RequestEvent) => {
         pubsub.emit(PAGE_METADATA_CHANGED_EVENT_KEY, event);
     }
 
-    return json({ success: true, syncedBlocks: modifiedBlocks.length, deletedBlocks: blocksToDelete.size });
+    return json({ success: true, syncedBlocks: modifiedBlocks ? modifiedBlocks.length : 0, deletedBlocks: blocksToDelete.size });
 };
