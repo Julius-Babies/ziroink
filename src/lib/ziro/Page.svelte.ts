@@ -3,6 +3,8 @@ import type {Block} from "$lib/ziro/Block";
 import {type BaseInline, InlineText, TextBlock, type ListStyle} from "$lib/ziro/TextBlock.svelte";
 import {DocumentFactory} from "$lib/ziro/DocumentFactory.svelte";
 import type {PageEvent, StyleType} from "$lib/ziro/Events";
+import {History} from "$lib/ziro/editor/history/History.svelte";
+import {Action} from "$lib/ziro/editor/history/Action";
 
 export type Selection = {
     isBlockSelection: boolean;
@@ -25,10 +27,31 @@ export class Page {
     selection: null | Selection = $state(null);
     cursorXPosition: number | null = $state(null);
     eventQueue: PageEvent[] = $state([]);
+    history: History;
+
+    private currentAction: Action | null = null;
+    async withAction<T>(callback: () => Promise<T>) {
+        const action = new Action(this, []);
+        this.currentAction = action;
+        const selectionBefore = this.selection ? {...this.selection} : null;
+        try {
+            return await callback();
+        } finally {
+            this.currentAction = null;
+            const selectionAfter = this.selection ? {...this.selection} : null;
+            action.selection_before = selectionBefore;
+            action.selection_after = selectionAfter;
+            this.history.addAction(action);
+        }
+    }
 
     factory = new DocumentFactory();
 
     private subscribers: ((event: PageEvent) => void)[] = [];
+
+    constructor() {
+        this.history = new History(this);
+    }
 
     subscribe(callback: (event: PageEvent) => void) {
         this.subscribers.push(callback);
@@ -50,6 +73,7 @@ export class Page {
 
     private emit(event: PageEvent) {
         this.eventQueue.push(event);
+        if (event.type !== "selection_changed") this.currentAction?.addEvent(event);
         for (const subscriber of this.subscribers) {
             subscriber(event);
         }

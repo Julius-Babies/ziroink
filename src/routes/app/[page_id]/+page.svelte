@@ -13,7 +13,7 @@
     import {untrack} from "svelte";
     import {TextBlock} from "$lib/ziro/TextBlock.svelte";
     import {replaceState} from "$app/navigation";
-    import DeveloperModeTabs from "$lib/web/page/DeveloperModeTabs.svelte";
+    import DeveloperModeTabs, {type DevTab} from "$lib/web/page/DeveloperModeTabs.svelte";
     import {DocumentFactory} from "$lib/ziro/DocumentFactory.svelte";
     import {localStorageSyncedWritable} from "$lib/util/LocalStorageSyncedWritable";
     import {copyPaste} from "$lib/ziro/editor/CopyPaste.svelte";
@@ -21,7 +21,7 @@
     let { data } = $props();
 
 
-    let visibleDevTab = localStorageSyncedWritable<"document_tree" | "sync_queue" | "copy_paste">("page.dev.tab", "document_tree");
+    let visibleDevTab = localStorageSyncedWritable<DevTab>("page.dev.tab", "document_tree");
 
     function loadPageFromDB() {
         const factory = new DocumentFactory();
@@ -261,6 +261,13 @@
                     <JsonView json={page.eventQueue}/>
                 {:else if $visibleDevTab === "copy_paste"}
                     <JsonView json={copyPaste.clipboard}/>
+                {:else if $visibleDevTab === "history"}
+                    <JsonView json={page.history.actions.map(action => ({
+                        selection_before: action.selection_before,
+                        selection_after: action.selection_after,
+                        takenAt: action.takenAt.toISOString(),
+                        events: action.events
+                    }))}/>
                 {/if}
             </div>
 

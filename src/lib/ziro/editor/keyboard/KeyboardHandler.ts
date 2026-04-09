@@ -181,9 +181,9 @@ export class KeyboardHandler {
         );
     }
 
-    onCompositionEnd(e: CompositionEvent) {
+    async onCompositionEnd(e: CompositionEvent) {
         e.preventDefault();
-        this.handleNewCharacter(e.data);
+        await this.handleNewCharacter(e.data);
     }
 
     async onEvent(event: KeyboardEvent) {
@@ -192,48 +192,65 @@ export class KeyboardHandler {
         if (isToggleStyle(event)) {
             const key = event.key.toLowerCase();
             if (!isNonCollapsedSelection(this.page.selection)) return;
+            const selection = this.page.selection;
             if (key === "b") {
                 event.preventDefault();
-                this.page.toggleStyle("bold", {forceTo: null, onSelection: this.page.selection});
+                await this.page.withAction(async () => this.page.toggleStyle("bold", {
+                    forceTo: null,
+                    onSelection: selection
+                }))
                 return;
             } else if (key === "i") {
                 event.preventDefault();
-                this.page.toggleStyle("italic", {forceTo: null, onSelection: this.page.selection});
+                await this.page.withAction(async () => this.page.toggleStyle("italic", {
+                    forceTo: null,
+                    onSelection: selection
+                }))
                 return;
             } else if (key === "u") {
                 event.preventDefault();
-                this.page.toggleStyle("underline", {forceTo: null, onSelection: this.page.selection});
+                await this.page.withAction(async () => this.page.toggleStyle("underline", {
+                    forceTo: null,
+                    onSelection: selection
+                }))
                 return;
             } else if (key === "j") {
                 event.preventDefault();
-                this.page.toggleStyle("strikethrough", {forceTo: null, onSelection: this.page.selection});
+                await this.page.withAction(async () => this.page.toggleStyle("strikethrough", {forceTo: null, onSelection: selection}))
                 return;
             }
         }
 
         if (event.key === "Tab") {
             event.preventDefault();
-            if (isNonCollapsedSelection(this.page.selection) && this.page.selection?.isBlockSelection) {
-                const selectedBlocks = this.page.getSelectedBlocks(this.page.selection);
-                selectedBlocks.forEach(block => {
-                    if (event.shiftKey) {
-                        this.page.updateBlockIndent(block.id, -1);
-                    } else {
-                        this.page.updateBlockIndent(block.id, 1);
-                    }
+            if (isNonCollapsedSelection(this.page.selection)) {
+                const selection = this.page.selection;
+                await this.page.withAction(async () => {
+                    const selectedBlocks = this.page.getSelectedBlocks(selection);
+                    selectedBlocks.forEach(block => {
+                        if (event.shiftKey) {
+                            this.page.updateBlockIndent(block.id, -1);
+                        } else {
+                            this.page.updateBlockIndent(block.id, 1);
+                        }
+                    });
                 });
                 return;
             }
-            this.deleteSelection();
-            const cursorPos = this.getCursorPosition();
-            if (!cursorPos) return;
-            const block = this.page.findBlock((b: any) => b.id === cursorPos.blockId);
-            if (!block) return;
-            if (event.shiftKey) {
-                this.page.updateBlockIndent(block.id, -1);
-            } else if (cursorPos.offset === 0) {
-                this.page.updateBlockIndent(block.id, 1);
-            }
+
+
+            await this.page.withAction(async () => {
+                const cursorPos = this.getCursorPosition();
+                if (!cursorPos) return;
+                const block = this.page.findBlock((b: any) => b.id === cursorPos.blockId);
+                if (!block) return;
+                this.deleteSelection();
+                if (event.shiftKey) {
+                    this.page.updateBlockIndent(block.id, -1);
+                } else if (cursorPos.offset === 0) {
+                    this.page.updateBlockIndent(block.id, 1);
+                }
+            });
             return;
         }
 
@@ -245,51 +262,59 @@ export class KeyboardHandler {
             const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor);
             if (!block || !(block instanceof TextBlock)) return;
 
-            this.deleteSelection();
+            await this.page.withAction(async () => {
+                this.deleteSelection();
 
-            const cursorOffset = this.page.selection!.start.offset;
-            this.page.insertText({blockId: blockIdAtCursor, offset: cursorOffset}, "\n");
-            this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset + 1}, null);
-            this.page.cursorXPosition = null;
+                const cursorOffset = this.page.selection!.start.offset;
+                this.page.insertText({blockId: blockIdAtCursor, offset: cursorOffset}, "\n");
+                this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset + 1}, null);
+                this.page.cursorXPosition = null;
+            });
             return;
         }
 
         if (isNewBlock(event)) {
             event.preventDefault();
-            this.deleteSelection();
-            const blockIdAtCursor = this.page.selection?.start.blockId
-            if (!blockIdAtCursor) return;
-            const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor)
-            if (!block) return;
+            await this.page.withAction(async () => {
+                this.deleteSelection();
+                const blockIdAtCursor = this.page.selection?.start.blockId
+                if (!blockIdAtCursor) return;
+                const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor)
+                if (!block) return;
 
-            if (block instanceof TextBlock) {
-                if (block.getVisualText() === "") {
-                    if (block.listType) {
-                        this.page.updateBlockList(block.id, null, null);
-                        return;
-                    }
-                    if (block.indentLevel > 0) {
-                        this.page.updateBlockIndent(block.id, -1);
-                        return;
+                if (block instanceof TextBlock) {
+                    if (block.getVisualText() === "") {
+                        if (block.listType) {
+                            this.page.updateBlockList(block.id, null, null);
+                            return;
+                        }
+                        if (block.indentLevel > 0) {
+                            this.page.updateBlockIndent(block.id, -1);
+                            return;
+                        }
                     }
                 }
-            }
 
-            if (block instanceof TextBlock) {
-                const cursorOffset = this.page.selection!.start.offset;
-                const { newBlockId } = this.page.splitBlock(block.id, cursorOffset);
-                this.page.setSelection({blockId: newBlockId, offset: 0}, null);
-                this.page.cursorXPosition = null;
-                return;
-            } else {
-                throw new Error("Non-text blocks are not yet supported")
-            }
+                if (block instanceof TextBlock) {
+                    const cursorOffset = this.page.selection!.start.offset;
+                    const { newBlockId } = this.page.splitBlock(block.id, cursorOffset);
+                    this.page.setSelection({blockId: newBlockId, offset: 0}, null);
+                    this.page.cursorXPosition = null;
+                    return;
+                } else {
+                    throw new Error("Non-text blocks are not yet supported")
+                }
+            })
+            return;
         }
 
         if (event.key === "Backspace") {
             event.preventDefault();
 
-            if (this.deleteSelection()) {
+            if (isNonCollapsedSelection(this.page.selection)) {
+                await this.page.withAction(async () => {
+                    this.deleteSelection();
+                })
                 return;
             }
 
@@ -299,62 +324,66 @@ export class KeyboardHandler {
             const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor);
             if (!block) return;
 
-            if (block instanceof TextBlock) {
-                if (cursorOffset === 0) {
-                    if (block.listType) {
-                        this.page.updateBlockList(block.id, null, null);
-                        return;
-                    }
-
-                    if (block.variant !== "paragraph") {
-                        this.page.updateBlockVariant(block.id, "paragraph");
-                        return;
-                    }
-
-                    if (block.indentLevel > 0) {
-                        this.page.updateBlockIndent(block.id, -1);
-                        return;
-                    }
-
-                    const index = this.page.blocks.indexOf(block);
-                    if (index <= 0) return;
-
-                    const previousBlock = this.page.blocks[index - 1];
-                    if (previousBlock instanceof TextBlock) {
-                        const prevContentLength = this.page.mergeBlocks(previousBlock.id, block.id);
-                        this.page.setSelection({blockId: previousBlock.id, offset: prevContentLength}, null);
-                    } else {
-                        this.page.blocks = this.page.blocks.filter(b => b.id !== block.id);
-                        if (previousBlock instanceof TextBlock) {
-                            this.page.setSelection({
-                                blockId: previousBlock.id,
-                                offset: previousBlock.getContentLength()
-                            }, null);
+            await this.page.withAction(async () => {
+                if (block instanceof TextBlock) {
+                    if (cursorOffset === 0) {
+                        if (block.listType) {
+                            this.page.updateBlockList(block.id, null, null);
+                            return;
                         }
+
+                        if (block.variant !== "paragraph") {
+                            this.page.updateBlockVariant(block.id, "paragraph");
+                            return;
+                        }
+
+                        if (block.indentLevel > 0) {
+                            this.page.updateBlockIndent(block.id, -1);
+                            return;
+                        }
+
+                        const index = this.page.blocks.indexOf(block);
+                        if (index <= 0) return;
+
+                        const previousBlock = this.page.blocks[index - 1];
+                        if (previousBlock instanceof TextBlock) {
+                            const prevContentLength = this.page.mergeBlocks(previousBlock.id, block.id);
+                            this.page.setSelection({blockId: previousBlock.id, offset: prevContentLength}, null);
+                        } else {
+                            this.page.blocks = this.page.blocks.filter(b => b.id !== block.id);
+                            if (previousBlock instanceof TextBlock) {
+                                this.page.setSelection({
+                                    blockId: previousBlock.id,
+                                    offset: previousBlock.getContentLength()
+                                }, null);
+                            }
+                        }
+                        return;
                     }
-                    return;
-                }
 
-                let deleteStartOffset: number;
-                const useLineJump = isMac() ? event.metaKey : false; // Windows meta key is for OS
-                const useWordJump = isMac() ? event.altKey : event.ctrlKey;
+                    let deleteStartOffset: number;
+                    const useLineJump = isMac() ? event.metaKey : false; // Windows meta key is for OS
+                    const useWordJump = isMac() ? event.altKey : event.ctrlKey;
 
-                if (useLineJump) {
-                    deleteStartOffset = this.getTargetLineOffset(block, cursorOffset, true);
-                } else if (useWordJump) {
-                    deleteStartOffset = findPrevWordBoundary(block.getVisualText(), cursorOffset);
+                    if (useLineJump) {
+                        deleteStartOffset = this.getTargetLineOffset(block, cursorOffset, true);
+                    } else if (useWordJump) {
+                        deleteStartOffset = findPrevWordBoundary(block.getVisualText(), cursorOffset);
+                    } else {
+                        deleteStartOffset = cursorOffset - 1;
+                    }
+
+                    const start = {blockId: blockIdAtCursor, offset: deleteStartOffset};
+                    const end = {blockId: blockIdAtCursor, offset: cursorOffset};
+                    this.page.deleteContent(start, end);
+                    this.page.setSelection({blockId: blockIdAtCursor, offset: deleteStartOffset}, null);
+                    this.page.cursorXPosition = null;
                 } else {
-                    deleteStartOffset = cursorOffset - 1;
+                    throw new Error("Non-text blocks are not yet supported")
                 }
+            })
 
-                const start = {blockId: blockIdAtCursor, offset: deleteStartOffset};
-                const end = {blockId: blockIdAtCursor, offset: cursorOffset};
-                this.page.deleteContent(start, end);
-                this.page.setSelection({blockId: blockIdAtCursor, offset: deleteStartOffset}, null);
-                this.page.cursorXPosition = null;
-            } else {
-                throw new Error("Non-text blocks are not yet supported")
-            }
+            return;
         }
 
         if (isArrowKey(event.key)) {
@@ -460,7 +489,9 @@ export class KeyboardHandler {
 
         if (event.key === "x" && isPrimaryControlKey(event)) {
             event.preventDefault();
-            await this.handleCut();
+            await this.page.withAction(async () => {
+                await this.handleCut();
+            })
             return;
         }
 
@@ -472,43 +503,45 @@ export class KeyboardHandler {
             if (!block || !(block instanceof TextBlock)) return;
 
             const textBeforeCursor = block.getVisualText().slice(0, cursorPos.offset);
-            if (textBeforeCursor.endsWith("(/")) {
-                event.preventDefault();
-                this.page.deleteContent({
-                    blockId: blockIdAtCursor,
-                    offset: cursorPos.offset - 2
-                }, {blockId: blockIdAtCursor, offset: cursorPos.offset});
-                const newCharInline = this.page.factory.createInlineSymbol({type: "check"});
-                this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
-                this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
-                return;
-            } else if (textBeforeCursor.endsWith("(x")) {
-                event.preventDefault();
-                this.page.deleteContent({
-                    blockId: blockIdAtCursor,
-                    offset: cursorPos.offset - 2
-                }, {blockId: blockIdAtCursor, offset: cursorPos.offset});
-                const newCharInline = this.page.factory.createInlineSymbol({type: "x"});
-                this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
-                this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
-                return;
-            } else if (textBeforeCursor.endsWith("(?")) {
-                event.preventDefault();
-                this.page.deleteContent({
-                    blockId: blockIdAtCursor,
-                    offset: cursorPos.offset - 2
-                }, {blockId: blockIdAtCursor, offset: cursorPos.offset});
-                const newCharInline = this.page.factory.createInlineSymbol({type: "question_mark"});
-                this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
-                this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
-                return;
-            }
+            await this.page.withAction(async () => {
+                if (textBeforeCursor.endsWith("(/")) {
+                    event.preventDefault();
+                    this.page.deleteContent({
+                        blockId: blockIdAtCursor,
+                        offset: cursorPos.offset - 2
+                    }, {blockId: blockIdAtCursor, offset: cursorPos.offset});
+                    const newCharInline = this.page.factory.createInlineSymbol({type: "check"});
+                    this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
+                    this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
+                    return;
+                } else if (textBeforeCursor.endsWith("(x")) {
+                    event.preventDefault();
+                    this.page.deleteContent({
+                        blockId: blockIdAtCursor,
+                        offset: cursorPos.offset - 2
+                    }, {blockId: blockIdAtCursor, offset: cursorPos.offset});
+                    const newCharInline = this.page.factory.createInlineSymbol({type: "x"});
+                    this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
+                    this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
+                    return;
+                } else if (textBeforeCursor.endsWith("(?")) {
+                    event.preventDefault();
+                    this.page.deleteContent({
+                        blockId: blockIdAtCursor,
+                        offset: cursorPos.offset - 2
+                    }, {blockId: blockIdAtCursor, offset: cursorPos.offset});
+                    const newCharInline = this.page.factory.createInlineSymbol({type: "question_mark"});
+                    this.page.insertInlineAtOffset(blockIdAtCursor, cursorPos.offset - 2, newCharInline);
+                    this.page.setSelection({blockId: blockIdAtCursor, offset: cursorPos.offset - 1}, null);
+                    return;
+                }
+            });
         }
 
         if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
             event.preventDefault()
             this.deleteSelection();
-            this.handleNewCharacter(event.key);
+            await this.handleNewCharacter(event.key);
         }
     }
 
@@ -523,7 +556,7 @@ export class KeyboardHandler {
         this.deleteSelection();
     }
 
-    private handleNewCharacter(key: string) {
+    private async handleNewCharacter(key: string) {
         const blockIdAtCursor = this.page.selection?.start.blockId;
         if (!blockIdAtCursor) return;
         const block = this.page.findBlock((b: any) => b.id === blockIdAtCursor);
@@ -543,23 +576,25 @@ export class KeyboardHandler {
                     const contentEnd = cursorOffset - 1;
 
                     if (contentEnd > contentStart && block.getVisualText().slice(contentStart, contentEnd).trim()) {
-                        this.page.toggleStyle("bold", {
-                            forceTo: true,
-                            onSelection: {
-                                isBlockSelection: false,
-                                start: {blockId: blockIdAtCursor, offset: contentStart},
-                                end: {blockId: blockIdAtCursor, offset: contentEnd},
-                            }
-                        });
-                        this.page.deleteContent(
-                            {blockId: blockIdAtCursor, offset: cursorOffset - 1},
-                            {blockId: blockIdAtCursor, offset: cursorOffset}
-                        );
-                        this.page.deleteContent(
-                            {blockId: blockIdAtCursor, offset: idx},
-                            {blockId: blockIdAtCursor, offset: idx + 2}
-                        );
-                        this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset - 3}, null);
+                        await this.page.withAction(async () => {
+                            this.page.toggleStyle("bold", {
+                                forceTo: true,
+                                onSelection: {
+                                    isBlockSelection: false,
+                                    start: {blockId: blockIdAtCursor, offset: contentStart},
+                                    end: {blockId: blockIdAtCursor, offset: contentEnd},
+                                }
+                            });
+                            this.page.deleteContent(
+                                {blockId: blockIdAtCursor, offset: cursorOffset - 1},
+                                {blockId: blockIdAtCursor, offset: cursorOffset}
+                            );
+                            this.page.deleteContent(
+                                {blockId: blockIdAtCursor, offset: idx},
+                                {blockId: blockIdAtCursor, offset: idx + 2}
+                            );
+                            this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset - 3}, null);
+                        })
                         return;
                     }
                 }
@@ -580,19 +615,21 @@ export class KeyboardHandler {
                 const contentEnd = cursorOffset;
 
                 if (contentEnd > contentStart && block.getVisualText().slice(contentStart, contentEnd).trim()) {
-                    this.page.toggleStyle("italic", {
-                        forceTo: true,
-                        onSelection: {
-                            isBlockSelection: false,
-                            start: {blockId: blockIdAtCursor, offset: contentStart},
-                            end: {blockId: blockIdAtCursor, offset: contentEnd},
-                        }
-                    });
-                    this.page.deleteContent(
-                        {blockId: blockIdAtCursor, offset: singleIdx},
-                        {blockId: blockIdAtCursor, offset: singleIdx + 1}
-                    );
-                    this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset - 1}, null);
+                    await this.page.withAction(async () => {
+                        this.page.toggleStyle("italic", {
+                            forceTo: true,
+                            onSelection: {
+                                isBlockSelection: false,
+                                start: {blockId: blockIdAtCursor, offset: contentStart},
+                                end: {blockId: blockIdAtCursor, offset: contentEnd},
+                            }
+                        });
+                        this.page.deleteContent(
+                            {blockId: blockIdAtCursor, offset: singleIdx},
+                            {blockId: blockIdAtCursor, offset: singleIdx + 1}
+                        );
+                        this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset - 1}, null);
+                    })
                     return;
                 }
             }
@@ -602,11 +639,11 @@ export class KeyboardHandler {
             const cursorOffset = this.page.selection!.start.offset;
             const textBefore = block.getVisualText().slice(0, cursorOffset);
 
-            const tryApplyStyle = (
+            const tryApplyStyle = async (
                 style: "italic" | "underline" | "strikethrough" | "code",
                 marker: string,
                 trailingInText = 0,
-            ): boolean => {
+            ): Promise<boolean> => {
                 const contentEnd = cursorOffset - trailingInText;
 
                 const idx = (() => {
@@ -627,37 +664,40 @@ export class KeyboardHandler {
                 const content = block.getVisualText().slice(contentStart, contentEnd);
                 if (contentEnd <= contentStart || !content.trim()) return false;
 
-                this.page.toggleStyle(style, {
-                    forceTo: true,
-                    onSelection: {
-                        isBlockSelection: false,
-                        start: { blockId: blockIdAtCursor, offset: contentStart },
-                        end:   { blockId: blockIdAtCursor, offset: contentEnd },
-                    }
+                await this.page.withAction(async () => {
+                    this.page.toggleStyle(style, {
+                        forceTo: true,
+                        onSelection: {
+                            isBlockSelection: false,
+                            start: { blockId: blockIdAtCursor, offset: contentStart },
+                            end:   { blockId: blockIdAtCursor, offset: contentEnd },
+                        }
+                    });
+                    this.page.deleteContent(
+                        { blockId: blockIdAtCursor, offset: contentEnd },
+                        { blockId: blockIdAtCursor, offset: contentEnd + trailingInText }
+                    );
+                    this.page.deleteContent(
+                        { blockId: blockIdAtCursor, offset: idx },
+                        { blockId: blockIdAtCursor, offset: idx + marker.length }
+                    );
+                    this.page.setSelection({ blockId: blockIdAtCursor, offset: contentEnd - marker.length }, null);
                 });
-                this.page.deleteContent(
-                    { blockId: blockIdAtCursor, offset: contentEnd },
-                    { blockId: blockIdAtCursor, offset: contentEnd + trailingInText }
-                );
-                this.page.deleteContent(
-                    { blockId: blockIdAtCursor, offset: idx },
-                    { blockId: blockIdAtCursor, offset: idx + marker.length }
-                );
-                this.page.setSelection({ blockId: blockIdAtCursor, offset: contentEnd - marker.length }, null);
+
                 return true;
             };
 
             if (key === "_") {
                 if (textBefore.endsWith("_")) {
-                    if (tryApplyStyle("underline", "__", 1)) return;
+                    if (await tryApplyStyle("underline", "__", 1)) return;
                 }
-                if (tryApplyStyle("italic", "_", 0)) return;
+                if (await tryApplyStyle("italic", "_", 0)) return;
             } else if (key === "~") {
                 if (textBefore.endsWith("~")) {
-                    if (tryApplyStyle("strikethrough", "~~", 1)) return;
+                    if (await tryApplyStyle("strikethrough", "~~", 1)) return;
                 }
             } else if (key === "`") {
-                if (tryApplyStyle("code", "`", 0)) return;
+                if (await tryApplyStyle("code", "`", 0)) return;
             }
         }
 
@@ -678,9 +718,11 @@ export class KeyboardHandler {
                 } else {
                     listStyle = {type: "arrow"};
                 }
-                this.page.updateBlockList(block.id, "unordered", listStyle);
-                this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
-                this.page.setSelection({blockId: block.id, offset: 0}, null);
+                await this.page.withAction(async () => {
+                    this.page.updateBlockList(block.id, "unordered", listStyle);
+                    this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
+                    this.page.setSelection({blockId: block.id, offset: 0}, null);
+                });
                 this.page.cursorXPosition = null;
                 return;
             } else {
@@ -722,9 +764,11 @@ export class KeyboardHandler {
                         };
                     }
 
-                    this.page.updateBlockList(block.id, "ordered", listStyle);
-                    this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
-                    this.page.setSelection({blockId: block.id, offset: 0}, null);
+                    await this.page.withAction(async () => {
+                        this.page.updateBlockList(block.id, "ordered", listStyle);
+                        this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
+                        this.page.setSelection({blockId: block.id, offset: 0}, null);
+                    });
                     this.page.cursorXPosition = null;
                     return;
                 }
@@ -734,17 +778,21 @@ export class KeyboardHandler {
 
                 if (checkboxCheckedMatch || checkboxUncheckedMatch) {
                     let listStyle: ListStyle = { type: "checkbox", checked: !checkboxUncheckedMatch }
-                    this.page.updateBlockList(block.id, "unordered", listStyle);
-                    this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
-                    this.page.setSelection({blockId: block.id, offset: 0}, null);
+                    await this.page.withAction(async () => {
+                        this.page.updateBlockList(block.id, "unordered", listStyle);
+                        this.page.deleteContent({blockId: block.id, offset: 0}, {blockId: block.id, offset: cursorOffset});
+                        this.page.setSelection({blockId: block.id, offset: 0}, null);
+                    });
                     this.page.cursorXPosition = null;
                     return;
                 }
             }
         }
 
-        this.page.insertText({blockId: blockIdAtCursor, offset: cursorOffset}, key);
-        this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset + key.length}, null);
+        await this.page.withAction(async () => {
+            this.page.insertText({blockId: blockIdAtCursor, offset: cursorOffset}, key);
+            this.page.setSelection({blockId: blockIdAtCursor, offset: cursorOffset + key.length}, null);
+        });
         this.page.cursorXPosition = null;
     }
 }
