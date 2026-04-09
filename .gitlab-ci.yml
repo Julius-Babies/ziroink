@@ -1,0 +1,98 @@
+stages:
+  - build
+  - package
+  - publish
+  - deploy
+
+variables:
+  CACHE_IMAGE: $CI_REGISTRY_IMAGE:cache
+
+.default-bun-cache: &bun-cache
+  cache:
+    key:
+      files:
+        - bun.lock
+    paths:
+      - node_modules/
+    policy: pull-push
+
+build-pr:
+  stage: build
+  image: oven/bun:1
+  rules:
+    -   if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  <<: *bun-cache
+  script:
+    - bun run build
+
+build-release:
+  stage: build
+  image: oven/bun:1
+  rules:
+    -   if: '($CI_COMMIT_BRANCH == "production" || $CI_COMMIT_BRANCH == "development") && $CI_PIPELINE_SOURCE == "push"'
+    -   if: $CI_COMMIT_BRANCH =~ /^APPSER-.*/ && $CI_PIPELINE_SOURCE == "push"
+  <<: *bun-cache
+  script:
+    - bun run build
+  artifacts:
+    paths:
+      - build
+    expire_in: 1 week
+
+docker-build-and-push:
+  stage: package
+  image: docker:cli
+  rules:
+    -   if: '($CI_COMMIT_BRANCH == "production" || $CI_COMMIT_BRANCH == "development") && $CI_PIPELINE_SOURCE == "push"'
+    -   if: $CI_COMMIT_BRANCH =~ /^APPSER-.*/ && $CI_PIPELINE_SOURCE == "push"
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker buildx create --use --driver docker-container --name multibuilder
+    - docker buildx inspect --bootstrap
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "production" ] || [ "$CI_COMMIT_BRANCH" = "development" ]; then
+        export TAG_PREFIX=$(echo "$CI_COMMIT_BRANCH" | tr '[:upper:]' '[:lower:]')
+      elif echo "$CI_COMMIT_BRANCH" | grep -qE '^APPSER-[0-9]+'; then
+        export ISSUE_NUMBER=$(echo "$CI_COMMIT_BRANCH" | sed -E 's/^APPSER-([0-9]+).*/\1/')
+        export TAG_PREFIX="branch-${ISSUE_NUMBER}"
+      fi
+    - export IMAGE_TAG_LATEST="${CI_REGISTRY_IMAGE}:${TAG_PREFIX}-latest"
+    - export IMAGE_TAG_COMMIT="${CI_REGISTRY_IMAGE}:${TAG_PREFIX}-${CI_COMMIT_SHORT_SHA}"
+    - echo "Building with tags:"
+    - echo "  - $IMAGE_TAG_LATEST"
+    - echo "  - $IMAGE_TAG_COMMIT"
+  script:
+    - |
+      docker buildx build \
+        --cache-from type=registry,ref=$CACHE_IMAGE \
+        --cache-to type=registry,ref=$CACHE_IMAGE,mode=max \
+        --platform linux/amd64,linux/arm64  \
+        --provenance=false \
+        --tag "$IMAGE_TAG_LATEST" \
+        --tag "$IMAGE_TAG_COMMIT" \
+        --push \
+        -f package.Dockerfile .
+    - echo "IMAGE_NAME=$IMAGE_TAG_COMMIT" >> image.env
+  artifacts:
+    reports:
+      dotenv: image.env
+    expire_in: 1 hour
+  after_script:
+    - docker buildx rm multibuilder
+
+deploy-to-swarm:
+  stage: deploy
+  image:
+    name: registry.gitlab.jvbabi.es/vplanplus/infra/deployer
+  rules:
+    -   if: '($CI_COMMIT_BRANCH == "production" || $CI_COMMIT_BRANCH == "development") && $CI_PIPELINE_SOURCE == "push"'
+  needs:
+    - job: docker-build-and-push
+      artifacts: true
+  before_script:
+    # Tag für Deployment ermitteln
+    - export TAG_PREFIX=$(echo "$CI_COMMIT_BRANCH" | tr '[:upper:]' '[:lower:]')
+    - export IMAGE_TAG_COMMIT="${CI_REGISTRY_IMAGE}:${TAG_PREFIX}-${CI_COMMIT_SHORT_SHA}"
+  script:
+    - setup_ssh preset swarm
+    - deploy_service $IMAGE_NAME ziro-${CI_COMMIT_BRANCH}_app $CI_SWARM_HOST
