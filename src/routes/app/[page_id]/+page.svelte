@@ -74,14 +74,33 @@
 
         // Figure out which blocks need to be updated
         const modifiedBlockIds = new Set<string>();
+        const deletedBlockIds = new Set<string>();
+
         for (const event of eventsToSync) {
-            if ('blockId' in event) modifiedBlockIds.add(event.blockId);
-            if (event.type === "block_merged") modifiedBlockIds.add(event.targetBlockId);
+            if (event.type === "block_deleted") {
+                deletedBlockIds.add(event.blockId);
+            } else if ('blockId' in event) {
+                modifiedBlockIds.add(event.blockId);
+            }
+            
+            if (event.type === "block_merged") {
+                modifiedBlockIds.add(event.targetBlockId);
+                deletedBlockIds.add(event.sourceBlockId);
+            }
             if (event.type === "block_split") {
                 modifiedBlockIds.add(event.oldBlockId);
                 modifiedBlockIds.add(event.newBlockId);
             }
+            if (event.type === "blocks_replaced") {
+                // When blocks are replaced, we need to know what replaced what.
+                // For undo/redo sync, we treat all IDs in blocks_replaced as modified.
+                event.oldBlockIds.forEach(id => modifiedBlockIds.add(id));
+                event.newBlockIds.forEach(id => modifiedBlockIds.add(id));
+            }
         }
+
+        // Remove deleted blocks from modified list to be clean
+        deletedBlockIds.forEach(id => modifiedBlockIds.delete(id));
 
         const modifiedBlocks = page.blocks
             .filter(b => modifiedBlockIds.has(b.id))
@@ -91,7 +110,12 @@
             await fetch(`/api/pages/${data.page.id}/sync`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ events: eventsToSync, modifiedBlocks, clientId })
+                body: JSON.stringify({ 
+                    events: eventsToSync, 
+                    modifiedBlocks, 
+                    deletedBlockIds: Array.from(deletedBlockIds), 
+                    clientId 
+                })
             });
         } catch (e) {
             console.error("Sync failed", e);

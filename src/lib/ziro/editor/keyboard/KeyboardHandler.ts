@@ -386,6 +386,22 @@ export class KeyboardHandler {
             return;
         }
 
+        if (event.key === "z" && isPrimaryControlKey(event)) {
+            event.preventDefault();
+            if (event.shiftKey) {
+                this.page.redo();
+            } else {
+                this.page.undo();
+            }
+            return;
+        }
+
+        if (event.key === "y" && isPrimaryControlKey(event)) {
+            event.preventDefault();
+            this.page.redo();
+            return;
+        }
+
         if (isArrowKey(event.key)) {
             event.preventDefault();
             const isShift = event.shiftKey;

@@ -28,7 +28,7 @@ export const POST = async ({ request, params }: RequestEvent) => {
         return json({ error: "Page not found or unauthorized" }, { status: 404 });
     }
 
-    const { events, modifiedBlocks, clientId } = await request.json() as { events: PageEvent[], modifiedBlocks: any[], clientId: string };
+    const { events, modifiedBlocks, deletedBlockIds: manualDeletedBlockIds, clientId } = await request.json() as { events: PageEvent[], modifiedBlocks: any[], deletedBlockIds?: string[], clientId: string };
 
     if ((!modifiedBlocks || modifiedBlocks.length === 0) && (!events || events.length === 0)) {
         return json({ success: true, message: "No events or blocks to sync" });
@@ -64,7 +64,7 @@ export const POST = async ({ request, params }: RequestEvent) => {
         }
     }
 
-    const blocksToDelete = new Set<string>();
+    const blocksToDelete = new Set<string>(manualDeletedBlockIds || []);
     for (const event of events) {
         if (event.type === "block_merged") {
             blocksToDelete.add(event.sourceBlockId);

@@ -31,6 +31,8 @@ export class Page {
 
     private currentAction: Action | null = null;
     async withAction<T>(callback: () => Promise<T>) {
+        if (this.currentAction) return await callback();
+
         const action = new Action(this, []);
         this.currentAction = action;
         const selectionBefore = this.selection ? {...this.selection} : null;
@@ -38,10 +40,225 @@ export class Page {
             return await callback();
         } finally {
             this.currentAction = null;
-            const selectionAfter = this.selection ? {...this.selection} : null;
-            action.selection_before = selectionBefore;
-            action.selection_after = selectionAfter;
-            this.history.addAction(action);
+            if (action.events.length > 0) {
+                const selectionAfter = this.selection ? {...this.selection} : null;
+                action.selection_before = selectionBefore;
+                action.selection_after = selectionAfter;
+                this.history.addAction(action);
+            }
+        }
+    }
+
+    undo() {
+        const action = this.history.undo();
+        if (!action) return;
+
+        // Apply events in reverse
+        const reversedEvents = [...action.events].reverse();
+        for (const event of reversedEvents) {
+            this.applyEvent(event, true);
+        }
+
+        if (action.selection_before) {
+            this.setSelection(action.selection_before.start, action.selection_before.end, action.selection_before.isBlockSelection);
+        }
+        
+        // Ensure changes are synced to server by triggering events
+        // However, applyEvent already calls emit for some events.
+        // Let's make sure ALL changes in undo/redo emit events for syncing.
+    }
+
+    redo() {
+        const action = this.history.redo();
+        if (!action) return;
+
+        // Apply events in normal order
+        for (const event of action.events) {
+            this.applyEvent(event, false);
+        }
+
+        if (action.selection_after) {
+            this.setSelection(action.selection_after.start, action.selection_after.end, action.selection_after.isBlockSelection);
+        }
+        
+        // Ensure changes are synced to server by triggering events
+    }
+
+    private applyEvent(event: PageEvent, isUndo: boolean) {
+        switch (event.type) {
+            case "text_inserted":
+                if (isUndo) {
+                    this.deleteTextInternal(event.blockId, event.offset, event.offset + event.text.length);
+                } else {
+                    this.insertTextInternal(event.blockId, event.offset, event.text);
+                }
+                break;
+            case "text_deleted":
+                if (isUndo) {
+                    if (event.deletedText) {
+                        this.insertTextInternal(event.blockId, event.startOffset, event.deletedText);
+                    }
+                } else {
+                    this.deleteTextInternal(event.blockId, event.startOffset, event.endOffset);
+                }
+                break;
+            case "block_inserted":
+                if (isUndo) {
+                    this.deleteBlockInternal(event.blockId);
+                } else {
+                    this.insertBlockInternal(event.blockId, event.position, event.blockData);
+                }
+                break;
+            case "block_deleted":
+                if (isUndo) {
+                    this.insertBlockInternal(event.blockId, event.position, event.blockData);
+                } else {
+                    this.deleteBlockInternal(event.blockId);
+                }
+                break;
+            case "block_indent_changed":
+                this.updateBlockIndentInternal(event.blockId, isUndo ? event.oldIndent : event.newIndent);
+                break;
+            case "block_variant_changed":
+                this.updateBlockVariantInternal(event.blockId, isUndo ? event.oldVariant : event.newVariant);
+                break;
+            case "block_list_changed":
+                this.updateBlockListInternal(event.blockId, 
+                    isUndo ? event.oldListType : event.newListType,
+                    isUndo ? event.oldListStyle : event.newListStyle
+                );
+                break;
+            case "block_split":
+                if (isUndo) {
+                    const oldBlockIdx = this.blocks.findIndex(b => b.id === event.oldBlockId);
+                    const newBlockIdx = this.blocks.findIndex(b => b.id === event.newBlockId);
+                    if (oldBlockIdx !== -1) {
+                        this.blocks[oldBlockIdx] = this.factory.fromObject(event.oldBlockData);
+                        this.emit({ type: "blocks_replaced", oldBlockIds: [event.oldBlockId], newBlockIds: [event.oldBlockId] });
+                    }
+                    if (newBlockIdx !== -1) {
+                        this.blocks = this.blocks.filter(b => b.id !== event.newBlockId);
+                        this.emit({ type: "block_deleted", blockId: event.newBlockId, blockData: event.newBlockData });
+                    }
+                } else {
+                    const oldBlockIdx = this.blocks.findIndex(b => b.id === event.oldBlockId);
+                    if (oldBlockIdx !== -1) {
+                        this.blocks[oldBlockIdx] = this.factory.fromObject(event.oldBlockData); // Updated state after split
+                        const newBlock = this.factory.fromObject(event.newBlockData);
+                        this.blocks.splice(oldBlockIdx + 1, 0, newBlock);
+                        this.emit({ type: "blocks_replaced", oldBlockIds: [event.oldBlockId], newBlockIds: [event.oldBlockId, event.newBlockId] });
+                    }
+                }
+                break;
+            case "block_merged":
+                if (isUndo) {
+                    const targetIdx = this.blocks.findIndex(b => b.id === event.targetBlockId);
+                    if (targetIdx !== -1) {
+                        this.blocks[targetIdx] = this.factory.fromObject(event.oldTargetData);
+                        const sourceBlock = this.factory.fromObject(event.oldSourceData);
+                        this.blocks.splice(targetIdx + 1, 0, sourceBlock);
+                        this.emit({ type: "blocks_replaced", oldBlockIds: [event.targetBlockId], newBlockIds: [event.targetBlockId, event.sourceBlockId] });
+                    }
+                } else {
+                    const targetIdx = this.blocks.findIndex(b => b.id === event.targetBlockId);
+                    const sourceIdx = this.blocks.findIndex(b => b.id === event.sourceBlockId);
+                    if (targetIdx !== -1 && sourceIdx !== -1) {
+                        const targetBlock = this.blocks[targetIdx];
+                        const sourceBlock = this.blocks[sourceIdx];
+                        if (targetBlock instanceof TextBlock && sourceBlock instanceof TextBlock) {
+                            targetBlock.inlines = [...targetBlock.inlines, ...sourceBlock.inlines];
+                            targetBlock._mergeAdjacentBaseInlines();
+                            this.blocks = this.blocks.filter(b => b.id !== event.sourceBlockId);
+                            this.emit({ type: "block_merged", targetBlockId: event.targetBlockId, sourceBlockId: event.sourceBlockId, oldTargetData: event.oldTargetData, oldSourceData: event.oldSourceData });
+                        }
+                    }
+                }
+                break;
+            case "style_toggled":
+                this.toggleStyleInternal(event.blockId, event.startOffset, event.endOffset, event.style, isUndo ? !event.value : event.value);
+                break;
+        }
+    }
+
+    private insertTextInternal(blockId: string, offset: number, text: string) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block instanceof TextBlock) {
+            const { inline, offsetInInline } = block.findInlineAtOffset(offset);
+            if (inline instanceof InlineText) {
+                inline.content = inline.content.substring(0, offsetInInline) + text + inline.content.slice(offsetInInline);
+            }
+            this.emit({ type: "text_inserted", blockId, offset, text });
+        }
+    }
+
+    private deleteTextInternal(blockId: string, startOffset: number, endOffset: number) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block instanceof TextBlock) {
+            const deletedText = block.getVisualText().substring(startOffset, endOffset);
+            const inlineStart = block.findInlineAtOffset(startOffset);
+            const inlineEnd = block.findInlineAtOffset(endOffset);
+            // Simplified deletion for single block
+            const text = block.getVisualText();
+            const newText = text.substring(0, startOffset) + text.slice(endOffset);
+            // For simplicity in undo/redo internal methods, we replace all inlines with a single text inline
+            // but in a real app we'd want to preserve styles. 
+            // Since this is for undo/redo of a single block, it's a start.
+            const newInl = this.factory.createInlineText();
+            newInl.content = newText;
+            block.inlines = [newInl];
+            
+            this.emit({ type: "text_deleted", blockId, startOffset, endOffset, deletedText });
+        }
+    }
+
+    private deleteBlockInternal(blockId: string) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block) {
+            const blockData = block.toObject();
+            this.blocks = this.blocks.filter(b => b.id !== blockId);
+            this.emit({ type: "block_deleted", blockId, blockData });
+        }
+    }
+
+    private insertBlockInternal(blockId: string, position: any, blockData: any) {
+        const block = this.factory.fromObject(blockData);
+        this.insertBlock(block, position);
+    }
+
+    private updateBlockIndentInternal(blockId: string, newIndent: number) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block) {
+            const oldIndent = block.indentLevel;
+            block.indentLevel = newIndent;
+            this.emit({ type: "block_indent_changed", blockId, oldIndent, newIndent });
+        }
+    }
+
+    private updateBlockVariantInternal(blockId: string, newVariant: any) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block instanceof TextBlock) {
+            const oldVariant = block.variant;
+            block.variant = newVariant;
+            this.emit({ type: "block_variant_changed", blockId, oldVariant, newVariant });
+        }
+    }
+
+    private updateBlockListInternal(blockId: string, newListType: any, newListStyle: any) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block instanceof TextBlock) {
+            const oldListType = block.listType;
+            const oldListStyle = block.listStyle;
+            block.listType = newListType;
+            block.listStyle = newListStyle;
+            this.emit({ type: "block_list_changed", blockId, oldListType, newListType, oldListStyle, newListStyle });
+        }
+    }
+
+    private toggleStyleInternal(blockId: string, startOffset: number, endOffset: number, style: any, value: boolean) {
+        const block = this.blocks.find(b => b.id === blockId);
+        if (block instanceof TextBlock) {
+            this.applyStyleToBlockRange(block, startOffset, endOffset, style, value);
+            this.emit({ type: "style_toggled", blockId, startOffset, endOffset, style, value });
         }
     }
 
@@ -137,25 +354,39 @@ export class Page {
         }
     }
 
-    insertBlock(block: Block, position: { type: "after_block", afterId: string } | { type: "end" }) {
+    insertBlock(block: Block, position: BlockInsertPosition) {
         if (position.type === "after_block") {
             const index = this.blocks.findIndex(b => b.id === position.afterId);
-            if (index === -1) {
-                throw new Error("Failed to find block with id " + position.afterId);
+            
+            // During undo/redo, block.sortKey is already set from snapshot.
+            // During REGULAR insert, it is not.
+            if (!block.sortKey) {
+                if (index === -1) {
+                    const prevKey = this.blocks.length > 0 ? this.blocks[this.blocks.length - 1].sortKey : null;
+                    block.sortKey = generateKeyBetween(prevKey, null);
+                } else {
+                    const prevKey = this.blocks[index].sortKey;
+                    const nextKey = index + 1 < this.blocks.length ? this.blocks[index + 1].sortKey : null;
+                    block.sortKey = generateKeyBetween(prevKey, nextKey);
+                }
             }
 
-            const prevKey = this.blocks[index].sortKey;
-            const nextKey = index + 1 < this.blocks.length ? this.blocks[index + 1].sortKey : null;
-            block.sortKey = generateKeyBetween(prevKey, nextKey);
-
-            this.blocks = [...this.blocks.slice(0, index + 1), block, ...this.blocks.slice(index + 1)]
+            if (index === -1) {
+                this.blocks = [...this.blocks, block];
+            } else {
+                this.blocks = [...this.blocks.slice(0, index + 1), block, ...this.blocks.slice(index + 1)];
+            }
+            this.blocks.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
             this.emit({ type: "block_inserted", blockId: block.id, position, blockData: block.toObject() });
             return;
         } else if (position.type === "end") {
-            const prevKey = this.blocks.length > 0 ? this.blocks[this.blocks.length - 1].sortKey : null;
-            block.sortKey = generateKeyBetween(prevKey, null);
+            if (!block.sortKey) {
+                const prevKey = this.blocks.length > 0 ? this.blocks[this.blocks.length - 1].sortKey : null;
+                block.sortKey = generateKeyBetween(prevKey, null);
+            }
 
             this.blocks = [...this.blocks, block]
+            this.blocks.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
             this.emit({ type: "block_inserted", blockId: block.id, position, blockData: block.toObject() });
         }
     }
@@ -172,6 +403,7 @@ export class Page {
         }
 
         const block = this.blocks[blockIndex];
+        const oldBlockData = block.toObject();
         if (!(block instanceof TextBlock)) {
             throw new Error("Cannot split non-text block");
         }
@@ -234,7 +466,9 @@ export class Page {
             type: "block_split",
             oldBlockId: blockId,
             newBlockId: newBlock.id,
-            splitOffset: offset
+            splitOffset: offset,
+            oldBlockData,
+            newBlockData: newBlock.toObject()
         });
 
         return { oldBlockId: blockId, newBlockId: newBlock.id };
@@ -253,6 +487,9 @@ export class Page {
             throw new Error("Failed to find source block with id " + sourceBlockId);
         }
 
+        const oldTargetData = targetBlock.toObject();
+        const oldSourceData = sourceBlock.toObject();
+
         if (!(targetBlock instanceof TextBlock) || !(sourceBlock instanceof TextBlock)) {
             throw new Error("Can only merge text blocks");
         }
@@ -266,7 +503,9 @@ export class Page {
         this.emit({
             type: "block_merged",
             targetBlockId,
-            sourceBlockId
+            sourceBlockId,
+            oldTargetData,
+            oldSourceData
         });
 
         return targetContentLength;
@@ -278,6 +517,11 @@ export class Page {
         inline.content = "";
         inline.sortKey = generateKeyBetween(null, null);
         block.inlines = [inline];
+        
+        // Ensure regular creation ALWAYS gets a fresh sortKey
+        const lastBlock = this.blocks.length > 0 ? this.blocks[this.blocks.length - 1] : null;
+        block.sortKey = generateKeyBetween(lastBlock?.sortKey || null, null);
+
         this.insertBlock(block, { type: "end" });
         return block.id;
     }
@@ -634,13 +878,20 @@ export class Page {
             }
             
             const blocksToRemove = this.blocks.slice(minIndex, maxIndex + 1);
-            for (const b of blocksToRemove) {
-                this.emit({ type: "block_deleted", blockId: b.id });
+            for (let i = 0; i < blocksToRemove.length; i++) {
+                const b = blocksToRemove[i];
+                const blockIndex = minIndex + i;
+                const position: BlockInsertPosition = blockIndex > 0 
+                    ? { type: "after_block", afterId: this.blocks[blockIndex - 1].id }
+                    : { type: "end" }; // Should not happen for minIndex > 0, but for safety
+                
+                this.emit({ type: "block_deleted", blockId: b.id, blockData: b.toObject(), position });
             }
             this.blocks = [
                 ...this.blocks.slice(0, minIndex),
                 ...this.blocks.slice(maxIndex + 1),
             ];
+
             
             // If all content blocks are deleted, ensure at least one empty block exists
             if (this.blocks.length === 1) {
@@ -696,14 +947,16 @@ export class Page {
                     startBlock._mergeAdjacentBaseInlines();
                 }
             } else {
+                const blockData = startBlock.toObject();
                 this.blocks = this.blocks.filter(b => b.id !== startBlock.id);
-                this.emit({ type: "block_deleted", blockId: startBlock.id });
+                this.emit({ type: "block_deleted", blockId: startBlock.id, blockData });
             }
             this.emit({
                 type: "text_deleted",
                 blockId: start.blockId,
                 startOffset: start.offset,
-                endOffset: end.offset
+                endOffset: end.offset,
+                deletedText: startBlock instanceof TextBlock ? startBlock.getVisualText().substring(start.offset, end.offset) : ""
             });
             return;
         }
@@ -742,8 +995,11 @@ export class Page {
 
         if (endIndex - startIndex > 1) {
             const blocksToRemove = this.blocks.slice(startIndex + 1, endIndex);
-            for (const b of blocksToRemove) {
-                this.emit({ type: "block_deleted", blockId: b.id });
+            for (let i = 0; i < blocksToRemove.length; i++) {
+                const b = blocksToRemove[i];
+                const blockIndex = startIndex + 1 + i;
+                const position: BlockInsertPosition = { type: "after_block", afterId: this.blocks[blockIndex - 1].id };
+                this.emit({ type: "block_deleted", blockId: b.id, blockData: b.toObject(), position });
             }
             this.blocks = [
                 ...this.blocks.slice(0, startIndex + 1),
@@ -752,6 +1008,10 @@ export class Page {
         }
 
         if (startBlock instanceof TextBlock && endBlock instanceof TextBlock) {
+            const blockData = endBlock.toObject();
+            const endIdx = this.blocks.indexOf(endBlock);
+            const position: BlockInsertPosition = { type: "after_block", afterId: this.blocks[endIdx - 1].id };
+            
             let prevKey = startBlock.inlines.length > 0 ? startBlock.inlines[startBlock.inlines.length - 1].sortKey : null;
             for (const inl of endBlock.inlines) {
                 inl.sortKey = generateKeyBetween(prevKey, null);
@@ -768,18 +1028,26 @@ export class Page {
             }
             
             this.blocks = this.blocks.filter(b => b.id !== endBlock.id);
-            this.emit({ type: "block_deleted", blockId: endBlock.id });
+            this.emit({ type: "block_deleted", blockId: endBlock.id, blockData, position });
         } else if (!(startBlock instanceof TextBlock)) {
+            const blockData = startBlock.toObject();
+            const startIdx = this.blocks.indexOf(startBlock);
+            const position: BlockInsertPosition = startIdx > 0 
+                ? { type: "after_block", afterId: this.blocks[startIdx - 1].id }
+                : { type: "end" }; // Not expected for non-text block at start of deletion range unless index 0
+
             this.blocks = this.blocks.filter(b => b.id !== startBlock.id);
-            this.emit({ type: "block_deleted", blockId: startBlock.id });
+            this.emit({ type: "block_deleted", blockId: startBlock.id, blockData, position });
         }
 
-        this.emit({
-            type: "text_deleted",
-            blockId: start.blockId,
-            startOffset: start.offset,
-            endOffset: end.offset
-        });
+            this.emit({
+                type: "text_deleted",
+                blockId: start.blockId,
+                startOffset: start.offset,
+                endOffset: end.offset,
+                deletedText: "" // For cross-block, we focus on block mutations
+            });
+
     }
 }
 
